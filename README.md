@@ -16,4 +16,4 @@
 Renki is a university-exclusive ride-sharing platform designed to help students find safe, convenient, and affordable rides to and from campus. It enables verified university students to create, join, and manage rides within a trusted campus community.
 
 The project aims to make daily commuting simpler, safer, and more accessible through university-based authentication, ride matching, and an easy-to-use interface.
-```
+
