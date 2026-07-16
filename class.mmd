@@ -1,0 +1,185 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'actorBkg': '#F8B195',
+    'actorBorder': '#2D2D2D',
+    'actorTextColor': '#000000',
+    'actorLineColor': '#6B9BD1',
+    'signalColor': '#2D2D2D',
+    'signalTextColor': '#000000',
+    'activationBorderColor': '#2D2D2D',
+    'activationBkgColor': '#FFFFFF',
+    'labelBoxBkgColor': '#F8B195',
+    'labelBoxBorderColor': '#2D2D2D',
+    'labelTextColor': '#000000',
+    'noteBkgColor': '#FFFFFF',
+    'noteBorderColor': '#2D2D2D',
+    'noteTextColor': '#000000',
+    'loopTextColor': '#000000',
+    'sectionTextColor': '#000000',
+    'lineColor': '#2D2D2D',
+    'primaryColor': '#F8B195',
+    'secondaryColor': '#FFFFFF',
+    'tertiaryColor': '#F8B195',
+    'mainBkg': '#FFFFFF',
+    'textColor': '#000000'
+  },
+  'themeCSS': '.actor-line{stroke-dasharray:6 4!important;stroke:#6B9BD1!important;stroke-width:1.5px}.actor{stroke:#2D2D2D!important;fill:#F8B195!important;stroke-width:2px}.messageLine0{stroke:#2D2D2D!important;stroke-width:1.5px;stroke-dasharray:none!important}.messageLine1{stroke:#2D2D2D!important;stroke-dasharray:5 3!important;stroke-width:1.5px}.messageText,.loopText,.labelText,.noteText,text.actor{fill:#000000!important}.activation0,.activation1,.activation2,.activation3,.activation4,.activation5{fill:#FFFFFF!important;stroke:#2D2D2D!important;stroke-width:2px}.labelBox{fill:#F8B195!important;stroke:#5B8DEF!important}.loopLine,.noteLine{stroke:#5B8DEF!important;stroke-dasharray:6 4!important;stroke-width:1.5px}.note{fill:#FFFFFF!important;stroke:#2D2D2D!important}#actor-man circle{fill:#F8B195!important;stroke:#2D2D2D!important}#actor-man line,#actor-man path{stroke:#2D2D2D!important}#arrowhead path{fill:#2D2D2D!important;stroke:#2D2D2D!important}'
+} }%%
+sequenceDiagram
+    actor Student
+    participant App as App(Client)
+    participant Auth as AuthService(Google OAuth)
+    participant Match as MatchingEngine
+    participant RideGroup as RideGroupService
+    participant UberAPI as UberAPI(External)
+    participant Report as ReportService
+    participant Admin as Admin
+
+    %% Phase 1: Authentication & Profile Setup (Soft Soft Blue)
+    rect rgb(235, 245, 255)
+    note over Student,Auth: Phase 1: Authentication & Profile Setup
+    Student->>+App: Click Login
+    App->>+Auth: Initiate Google OAuth
+    Auth->>Auth: Authenticate User
+    Auth-->>-App: Return Google Profile
+    App-->>-Student: Show Profile Form
+    Student->>+App: Upload ID Card + Select Gender
+    App->>+Auth: Submit ID Card Image
+    Auth->>Auth: Store ID Card
+    App->>Auth: Start Live Video Verification
+
+    %% Video loop (Soft Muted Amber)
+    rect rgb(255, 248, 225)
+    loop Until Gender Verified or Timeout
+        Student->>Auth: Perform Video Gesture
+        Auth->>Auth: Analyze Video Frame
+        Auth-->>App: Verification Progress
+        App-->>Student: Guide Next Step
+    end
+    end
+
+    Auth-->>-App: Gender Verified ✓
+    App-->>-Student: Profile Setup Complete
+    end
+
+    %% Phase 2: Ride Request & Matching (Soft Pale Green)
+    rect rgb(232, 248, 235)
+    note over Student,RideGroup: Phase 2: Ride Request & Matching
+    Student->>+App: Submit Ride Request
+    Note over App: Destination, Current Location, Departure Time
+    App->>+Match: Search for Compatible Riders
+
+    %% Search loop (Whiter Mint Green)
+    rect rgb(244, 253, 246)
+    loop Until Match Found or 5 min Timeout
+        Match->>Match: Query Compatible Riders (same dest/time/gender)
+        Match-->>App: Searching...
+        App-->>Student: Searching for Riders
+    end
+    end
+
+    rect rgb(232, 240, 255)
+    alt Match Found
+        Match->>+RideGroup: Create New RideGroup
+        RideGroup->>RideGroup: Store Members & Details
+        RideGroup-->>-Match: Group ID
+        Match-->>-App: Match Success
+        App-->>-Student: Matched! Riders Found
+        Student->>+App: Accept Match
+        App->>+RideGroup: Confirm Membership
+    else No Match
+        Match-->>App: No Compatible Riders
+        App-->>Student: Added to Waitlist
+        Note over Student: Will notify when match found
+        Note over Student: Will notify when match found
+    end
+    end
+    end
+
+    %% Phase 3: QR Code Generation & Verification (Soft Cool Lavender)
+    rect rgb(240, 235, 255)
+    note over Student,RideGroup: Phase 3: QR Code Generation & Verification
+    RideGroup->>RideGroup: Generate QR Code
+    RideGroup-->>-App: QR Code
+    App-->>-Student: Display QR Code
+    Note over Student: Student shows QR to riders in person
+    Student->>+App: Scan QR Code (via camera)
+    App->>+RideGroup: Send Scanned Code
+    RideGroup->>RideGroup: Validate Code & Expiry
+
+    rect rgb(232, 240, 255)
+    alt QR Valid & Not Expired
+        RideGroup->>RideGroup: Mark User as Verified Member
+        RideGroup-->>-App: Verification Success ✓
+        App-->>-Student: Connected! Ride Starting
+    else QR Invalid or Expired
+        RideGroup-->>App: Code Error
+        App-->>Student: Code Invalid/Expired. Contact Riders.
+    end
+    end
+    end
+
+    %% Phase 4: Uber Integration (Soft Pale Coral/Rose)
+    rect rgb(255, 240, 240)
+    note over Student,UberAPI: Phase 4 (Optional): Uber Integration
+    rect rgb(240, 248, 235)
+    opt Uber Special Feature Enabled
+        Student->>+App: Switch to Uber Option
+        App->>+UberAPI: Request Ride (Destination, Time)
+        UberAPI->>UberAPI: Calculate Fare & Find Driver
+        UberAPI-->>-App: Ride Confirmed & ETA
+        App-->>-Student: Uber Ride Details
+    end
+    end
+    end
+
+    %% Phase 5: Post-Ride Actions (Soft Warm Sand)
+    rect rgb(254, 249, 235)
+    note over Student,Report: Phase 5: Post-Ride Actions
+    Note over RideGroup: Ride Completed
+    activate RideGroup
+    RideGroup->>RideGroup: Increment Shared Ride Count Between Members
+    deactivate RideGroup
+
+    rect rgb(240, 248, 235)
+    opt File Report on Rider
+        Student->>App: Report Issue (Safety, Behavior, etc.)
+        activate App
+        App->>Report: Submit Report with Details
+        activate Report
+        Report->>Report: Store Report
+        Report->>Admin: Notify Admin of New Report
+        activate Admin
+        Admin->>Admin: Review Report & Evidence
+        rect rgb(232, 240, 255)
+        alt Issue Validated
+            Admin->>Report: Mark Resolved + Take Action
+            Report->>App: Action Taken (User Warned/Banned)
+            App->>Student: Notification Sent
+        else Insufficient Evidence
+            Admin->>Report: Dismiss Report
+            Report->>App: Report Dismissed
+            App->>Student: Notification Sent
+        end
+        end
+        deactivate Admin
+        deactivate Report
+        deactivate App
+    end
+    end
+
+    rect rgb(255, 248, 225)
+    opt Add Rider as Friend
+        Student->>App: Send Friend Request
+        activate App
+        App->>RideGroup: Record Friendship
+        activate RideGroup
+        RideGroup->>RideGroup: Store Friendship (Boost Priority for Future Matches)
+        RideGroup->>App: Friendship Saved
+        App->>Student: Friend Request Sent
+        deactivate RideGroup
+        deactivate App
+    end
+    end
+    end
