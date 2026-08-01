@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+
+# Development image: keeps dev dependencies and runs tsx in watch mode so that
+# edits on the host restart the server inside the container.
+# Build context is the REPO ROOT — see backend/Dockerfile for why.
+FROM node:22-alpine
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+RUN npm ci
+
+COPY backend ./backend
+
+ENV NODE_ENV=development
+EXPOSE 4000
+CMD ["npm", "run", "dev", "-w", "@renki/backend"]

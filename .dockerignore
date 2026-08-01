@@ -1,0 +1,16 @@
+# Context is the repo root, so these patterns must match at any depth.
+**/node_modules
+**/dist
+**/coverage
+.git
+.gitignore
+.github
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/README.md
+**/Dockerfile*
+docker-compose*.yml
+.dockerignore
+utils

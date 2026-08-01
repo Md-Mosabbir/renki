@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: renki
+      POSTGRES_PASSWORD: renki
+      POSTGRES_DB: renki
+    ports:
+      # Published on 5433, NOT 5432, because Ubuntu's postgres service starts on
+      # boot and already owns 5432. Publishing there would fail to bind — and
+      # worse, when this container is stopped, localhost:5432 would silently fall
+      # through to that system database, which has no renki tables.
+      #
+      # Left side is the host port, right side is inside the container. The
+      # container keeps 5432, so the `db:5432` URL the api service uses below is
+      # unaffected by this.
+      - '5433:5432'
+    volumes:
+      - renki-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -U matters: without it pg_isready checks the `root` user and reports
+      # healthy before the renki role and database actually exist.
+      test: ['CMD-SHELL', 'pg_isready -U renki -d renki']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      # Root context so the workspace lockfile is visible to npm ci.
+      context: .
+      dockerfile: backend/Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        # Wait for the healthcheck, not just for the container to exist —
+        # otherwise the API boots first and its startup probe reports UNREACHABLE.
+        condition: service_healthy
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:3000
+      # Host is `db`, not localhost: inside the compose network each service is
+      # reachable by its service name. Port is 5432, the container's port, not
+      # the published one.
+      DATABASE_URL: postgresql://renki:renki@db:5432/renki
+    volumes:
+      # Mount the source for live reload, but keep the container's own
+      # node_modules so host/linux binaries never clash.
+      - ./backend/src:/app/backend/src
+      - /app/node_modules
+
+volumes:
+  renki-pgdata:
