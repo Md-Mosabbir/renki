@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import greetingRoutes from './greeting.routes.js';
 import healthRoutes from './health.routes.js';
+import authRoutes from './auth.routes.js';
 
 /**
  * ROUTES — the URL map. Every feature mounts its own router here, so there is
@@ -10,5 +11,6 @@ const router = Router();
 
 router.use('/health', healthRoutes);
 router.use('/hello', greetingRoutes);
+router.use('/auth', authRoutes);
 
 export default router;
