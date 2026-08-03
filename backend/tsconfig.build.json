@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  // Narrower than the base include: only src/ is compiled, so vitest.config.ts
+  // and *.test.ts never reach dist/ or the production image.
+  "compilerOptions": {
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
