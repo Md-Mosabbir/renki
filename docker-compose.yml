@@ -40,6 +40,13 @@ services:
         condition: service_healthy
     ports:
       - '4000:4000'
+    # Compose's own `${VAR}` interpolation only reads a .env at the repo root,
+    # and the real one lives in backend/. Load it here instead; `environment:`
+    # below still wins for the keys it sets, so DATABASE_URL stays compose-local.
+    # required: false — backend/.env is git-ignored and may not exist yet.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       NODE_ENV: development
       PORT: 4000
@@ -48,6 +55,11 @@ services:
       # reachable by its service name. Port is 5432, the container's port, not
       # the published one.
       DATABASE_URL: postgresql://renki:renki@db:5432/renki
+      # CLIENT_ID and JWT_SECRET come from env_file above — env.ts gives them no
+      # fallback, so the container refuses to boot without them rather than
+      # accepting tokens minted for any Google app.
+      JWT_EXPIRES_IN: 7d
+      ALLOWED_EMAIL_DOMAIN: northsouth.edu
     volumes:
       # Mount the source for live reload, but keep the container's own
       # node_modules so host/linux binaries never clash.

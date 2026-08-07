@@ -121,6 +121,10 @@ jobs:
             -e PORT=4000 \
             -e CORS_ORIGIN=http://localhost:3000 \
             -e DATABASE_URL=postgresql://renki:renki@localhost:5432/renki \
+            -e CLIENT_ID=ci-not-a-real-client-id \
+            -e JWT_SECRET=ci-not-a-real-secret \
+            -e JWT_EXPIRES_IN=7d \
+            -e ALLOWED_EMAIL_DOMAIN=northsouth.edu \
             renki-backend:ci
 
           for i in $(seq 1 15); do

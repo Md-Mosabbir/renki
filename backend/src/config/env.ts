@@ -20,7 +20,17 @@ export const env = {
   isProduction: nodeEnv === 'production',
   port: Number(required('PORT', '4000')),
   corsOrigin: required('CORS_ORIGIN', 'http://localhost:3000'),
-  // No fallback on purpose. A default here would silently point at the wrong
-  // database in production; failing at startup is the safer outcome.
+
+  // No fallbacks on purpose. A default database would silently point at the
+  // wrong one; a default client ID would accept tokens minted for any Google
+  // app; a default signing secret would be a publicly known secret. Failing at
+  // startup is the safer outcome in all three cases.
+  //
+  // Note `required` treats "" as missing, so `JWT_SECRET=` in a .env throws
+  // rather than falling through to a default.
   databaseUrl: required('DATABASE_URL'),
+  clientId: required('CLIENT_ID'),
+  jwtSecret: required('JWT_SECRET'),
+  jwtExpiresIn: required('JWT_EXPIRES_IN', '7d'),
+  allowedEmailDomain: required('ALLOWED_EMAIL_DOMAIN', 'northsouth.edu'),
 } as const;

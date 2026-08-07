@@ -16,13 +16,17 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "google-auth-library": "^11.0.0",
     "helmet": "^8.1.0",
+    "jose": "^6.2.8",
     "morgan": "^1.10.1",
     "pg": "^8.22.0"
   },
@@ -38,6 +42,7 @@
     "prettier": "^3.6.2",
     "tsx": "^4.20.7",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.4"
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^4.1.10"
   }
 }

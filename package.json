@@ -15,8 +15,11 @@
     "build": "npm run build -w @renki/backend",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "auth:test": "npx serve tools/auth-test -l 3000",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "npm run test -w @renki/backend",
+    "test:watch": "npm run test:watch -w @renki/backend"
   },
   "devDependencies": {
     "prettier": "^3.9.6"

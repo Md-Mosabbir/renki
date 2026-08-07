@@ -5,7 +5,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    "rootDir": "src",
+    // rootDir/outDir live in tsconfig.build.json — only the build emits, and
+    // rootDir would reject vitest.config.ts for sitting outside src/.
     "outDir": "dist",
 
     "strict": true,
@@ -22,6 +23,10 @@
     "declaration": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts"],
+  // Typecheck and editor scope. Wider than the build: config files at the
+  // workspace root are real TypeScript and should be checked too, otherwise the
+  // language server treats them as outside the project and cannot resolve their
+  // imports.
+  "include": ["src/**/*.ts", "*.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
