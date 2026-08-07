@@ -1,3 +1,0 @@
-INSERT INTO reports (id, reporter_id, reported_user_id, ride_group_id, reason, description, status, created_at) VALUES
-('a0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', 'Late arrival',        'Rider arrived 20 minutes after the agreed pickup window.',  'resolved',     '2026-02-05 09:30:00+06'),
-('a0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001', 'Behavioral concern',  'Passenger was disrespectful to the group during the ride.', 'under_review', '2026-02-03 09:00:00+06');
