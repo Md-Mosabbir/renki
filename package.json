@@ -16,6 +16,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "auth:test": "npx serve tools/auth-test -l 3000",
+    "verification:test": "npx serve tools/gender-verification -l 3001",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test -w @renki/backend",

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verification Success</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .card {
+        text-align: center;
+        background: #1b1b1b;
+        padding: 32px;
+        border-radius: 16px;
+        max-width: 600px;
+        width: 100%;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 6px 14px;
+        background: #198754;
+        color: white;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        margin: 8px 0;
+      }
+
+      .privacy-box {
+        background: #252525;
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 13px;
+        color: #aaa;
+        text-align: left;
+      }
+
+      .vector-container {
+        margin-top: 16px;
+        text-align: left;
+      }
+
+      pre {
+        background: #0d0d0d;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 11px;
+        max-height: 140px;
+        overflow-y: auto;
+        color: #00d2ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Verification Passed</h1>
+      <div class="badge">Anti-Spoofing Liveness: Verified</div>
+      <p id="result">Detected gender: Loading...</p>
+
+      <div class="privacy-box">
+        🔒 <strong>Privacy Assured:</strong> Zero video frames or face images were saved
+        or transmitted. Only a 128-dimensional mathematical vector embedding was generated
+        in memory for future ID card matching.
+      </div>
+
+      <div class="vector-container">
+        <p style="font-size: 13px; font-weight: bold; margin-bottom: 6px">
+          Extracted 128D Facial Feature Vector (For ID Card Matching):
+        </p>
+        <pre id="vectorOutput">Loading vector data...</pre>
+      </div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const genderParam = params.get('gender') || 'Unknown';
+      document.getElementById('result').textContent = `Verified Gender: ${genderParam}`;
+
+      const rawPayload = sessionStorage.getItem('genderVerificationPayload');
+      if (rawPayload) {
+        try {
+          const payload = JSON.parse(rawPayload);
+          console.log('Verification Payload:', payload);
+          document.getElementById('vectorOutput').textContent = JSON.stringify(
+            payload.faceVector,
+            null,
+            2
+          );
+        } catch (e) {
+          document.getElementById('vectorOutput').textContent =
+            'Unable to parse vector data.';
+        }
+      } else {
+        document.getElementById('vectorOutput').textContent =
+          'No vector payload found in session.';
+      }
+    </script>
+  </body>
+</html>
