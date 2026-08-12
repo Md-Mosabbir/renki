@@ -22,6 +22,12 @@ let overlayCanvas = null;
 let animFrameId = null;
 let faceLandmarker = null;
 let lastVideoTime = -1;
+let faceApiModelsLoaded = false;
+let isDetectingGender = false;
+let lastGenderDetectTime = 0;
+let positionStableFrames = 0;
+let genderMatchFrames = 0;
+let genderMismatchFrames = 0;
 
 // Anti-Spoofing & Liveness Challenge State Machine
 const LIVENESS_STAGES = {
@@ -33,9 +39,15 @@ const LIVENESS_STAGES = {
 let currentStage = LIVENESS_STAGES.POSITION;
 let blinkDetected = false;
 let headTurnDetected = false;
-let genderConfidenceBuffer = [];
 
 const MAX_SESSION_TIME = 30000;
+const GENDER_CONFIDENCE_THRESHOLD = 0.65;
+const REQUIRED_MATCH_FRAMES = 5;
+const REQUIRED_MISMATCH_FRAMES = 3;
+const POSITION_STABLE_FRAMES = 8;
+const GENDER_DETECT_INTERVAL_MS = 350;
+const FACE_CENTER_MIN = 0.42;
+const FACE_CENTER_MAX = 0.58;
 
 // MediaPipe 478 Landmarks Key Indices
 const NOSE_TIP = 1;
@@ -45,6 +57,12 @@ const FOREHEAD_TOP = 10;
 const CHIN_BOTTOM = 152;
 const LEFT_EYE_OUTER = 33;
 const RIGHT_EYE_OUTER = 263;
+
+function capitalizeGender(gender) {
+  if (!gender) return '';
+  const normalized = gender.toLowerCase();
+  return normalized === 'male' ? 'Male' : normalized === 'female' ? 'Female' : gender;
+}
 
 function clearCanvas() {
   if (overlayCanvas) {
@@ -83,15 +101,29 @@ function updateCounter() {
   }
 }
 
+async function loadFaceApiModels() {
+  if (faceApiModelsLoaded) return;
+
+  if (typeof faceapi === 'undefined') {
+    throw new Error('face-api library failed to load.');
+  }
+
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri('models'),
+    faceapi.nets.ageGenderNet.loadFromUri('models'),
+  ]);
+
+  faceApiModelsLoaded = true;
+}
+
 async function loadModels() {
-  if (faceLandmarker) {
+  if (faceLandmarker && faceApiModelsLoaded) {
     startCamera();
     return;
   }
 
-  verificationStatus.textContent = 'Loading MediaPipe 478 3D landmark model...';
+  verificationStatus.textContent = 'Loading face detection and gender models...';
   try {
-    // Poll up to 5s for window.FaceLandmarker & FilesetResolver from ES Module script tag
     let attempts = 0;
     while ((!window.FaceLandmarker || !window.FilesetResolver) && attempts < 50) {
       await new Promise((r) => setTimeout(r, 100));
@@ -101,6 +133,8 @@ async function loadModels() {
     if (!window.FaceLandmarker || !window.FilesetResolver) {
       throw new Error('MediaPipe modules failed to initialize.');
     }
+
+    await loadFaceApiModels();
 
     const { FaceLandmarker, FilesetResolver } = window;
 
@@ -113,36 +147,37 @@ async function loadModels() {
       );
     }
 
-    // Try GPU delegate first, fallback to CPU if WebGL fails
-    try {
-      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: 'models/face_landmarker.task',
-          delegate: 'GPU',
-        },
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: true,
-        runningMode: 'VIDEO',
-        numFaces: 2,
-      });
-    } catch (gpuErr) {
-      console.warn('GPU delegate failed, falling back to CPU:', gpuErr);
-      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: 'models/face_landmarker.task',
-          delegate: 'CPU',
-        },
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: true,
-        runningMode: 'VIDEO',
-        numFaces: 2,
-      });
+    if (!faceLandmarker) {
+      try {
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: 'models/face_landmarker.task',
+            delegate: 'GPU',
+          },
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
+          runningMode: 'VIDEO',
+          numFaces: 2,
+        });
+      } catch (gpuErr) {
+        console.warn('GPU delegate failed, falling back to CPU:', gpuErr);
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: 'models/face_landmarker.task',
+            delegate: 'CPU',
+          },
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
+          runningMode: 'VIDEO',
+          numFaces: 2,
+        });
+      }
     }
 
     startCamera();
   } catch (err) {
     console.error('loadModels error:', err);
-    verificationStatus.textContent = 'Failed to load MediaPipe models.';
+    verificationStatus.textContent = 'Failed to load verification models.';
     instruction.textContent = 'Ensure internet connection or local model files exist.';
     retryBtn.classList.remove('hidden');
   }
@@ -152,7 +187,11 @@ function resetLivenessState() {
   currentStage = LIVENESS_STAGES.POSITION;
   blinkDetected = false;
   headTurnDetected = false;
-  genderConfidenceBuffer = [];
+  positionStableFrames = 0;
+  genderMatchFrames = 0;
+  genderMismatchFrames = 0;
+  lastGenderDetectTime = 0;
+  isDetectingGender = false;
   livenessStep.textContent = 'Liveness Check: Step 1 of 3 - Position Face';
   instruction.textContent = 'Please face the camera directly in good lighting.';
 }
@@ -222,23 +261,25 @@ function stopCamera() {
   }
 
   sessionStartedAt = 0;
-  genderConfidenceBuffer = [];
   lastVideoTime = -1;
+  isDetectingGender = false;
+  genderMatchFrames = 0;
+  genderMismatchFrames = 0;
+  positionStableFrames = 0;
 }
 
 function failDetection(message = 'Verification failed.') {
   stopCamera();
   clearCanvas();
   verificationStatus.textContent = message;
-  instruction.textContent =
-    'Please try again in better lighting, ensure your face is visible, and complete challenges.';
+  instruction.textContent = 'Please try again in better lighting, ensure your face is visible, and complete all challenges.';
   counter.textContent = 'Time remaining: 0s';
   verifiedGender = '';
   window.verifiedGender = verifiedGender;
+  livenessStep.textContent = 'Verification Failed';
   retryBtn.classList.remove('hidden');
 }
 
-// Calculate Eye Aspect Ratio (EAR) from 3D Landmarks
 function calculateEAR(landmarks, p1, p2, p3, p4, p5, p6) {
   const v1 = Math.hypot(
     landmarks[p2].x - landmarks[p6].x,
@@ -255,7 +296,6 @@ function calculateEAR(landmarks, p1, p2, p3, p4, p5, p6) {
   return (v1 + v2) / (2.0 * h || 1.0);
 }
 
-// Extract 128D scale-invariant & nose-origin normalized facial embedding vector from 478 3D landmarks
 function extract128DFaceVector(landmarks) {
   const nose = landmarks[NOSE_TIP];
   const leftEye = landmarks[LEFT_EYE_OUTER];
@@ -292,58 +332,35 @@ function extract128DFaceVector(landmarks) {
   return vector;
 }
 
-// Compute geometric gender likelihood score from 478 3D landmarks
-function computeGenderScoreFromLandmarks(landmarks, selectedGender) {
-  const jawWidth = Math.hypot(
-    landmarks[361].x - landmarks[132].x,
-    landmarks[361].y - landmarks[132].y
-  );
-  const cheekWidth = Math.hypot(
-    landmarks[RIGHT_CHEEK].x - landmarks[LEFT_CHEEK].x,
-    landmarks[RIGHT_CHEEK].y - landmarks[LEFT_CHEEK].y
-  );
-  const jawToCheekRatio = jawWidth / (cheekWidth || 1.0);
+function isFaceCentered(yawRatio) {
+  return yawRatio >= FACE_CENTER_MIN && yawRatio <= FACE_CENTER_MAX;
+}
 
-  const chinWidth = Math.hypot(
-    landmarks[377].x - landmarks[148].x,
-    landmarks[377].y - landmarks[148].y
-  );
-  const chinToCheekRatio = chinWidth / (cheekWidth || 1.0);
+async function detectGenderFromVideo() {
+  const detection = await faceapi
+    .detectSingleFace(
+      video,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })
+    )
+    .withAgeAndGender();
 
-  const interOcularDist = Math.hypot(
-    landmarks[RIGHT_EYE_OUTER].x - landmarks[LEFT_EYE_OUTER].x,
-    landmarks[RIGHT_EYE_OUTER].y - landmarks[LEFT_EYE_OUTER].y
-  );
-  const leftEyebrowHeight = Math.abs(landmarks[105].y - landmarks[LEFT_EYE_OUTER].y);
-  const rightEyebrowHeight = Math.abs(landmarks[334].y - landmarks[RIGHT_EYE_OUTER].y);
-  const avgEyebrowHeightRatio =
-    (leftEyebrowHeight + rightEyebrowHeight) / 2.0 / (interOcularDist || 1.0);
+  if (!detection) return null;
 
-  const faceHeight = Math.hypot(
-    landmarks[CHIN_BOTTOM].x - landmarks[FOREHEAD_TOP].x,
-    landmarks[CHIN_BOTTOM].y - landmarks[FOREHEAD_TOP].y
-  );
-  const faceAspectRatio = faceHeight / (cheekWidth || 1.0);
-
-  let score = 0.5;
-  score += (jawToCheekRatio - 0.75) * 1.5;
-  score += (chinToCheekRatio - 0.38) * 1.2;
-  score += (0.28 - avgEyebrowHeightRatio) * 1.0;
-  score += (1.42 - faceAspectRatio) * 0.8;
-
-  const maleScore = Math.min(0.95, Math.max(0.05, score));
-  const isMaleSelected = selectedGender === 'male';
-  const matchScore = isMaleSelected ? maleScore : 1.0 - maleScore;
-
-  return Math.min(0.98, Math.max(0.68, matchScore + 0.35));
+  return {
+    gender: detection.gender.toLowerCase(),
+    probability: detection.genderProbability,
+  };
 }
 
 function redirectToSuccess(gender, faceVector) {
   stopCamera();
   clearCanvas();
 
+  const verifiedLabel = capitalizeGender(gender);
+
   const payload = {
-    verifiedGender: gender,
+    verifiedGender: verifiedLabel,
+    selectedGender: capitalizeGender(selectedGender),
     livenessVerified: true,
     livenessChallengesPassed: ['FacePositioned', 'EyeBlink', 'HeadTurn'],
     faceVector: faceVector,
@@ -353,8 +370,7 @@ function redirectToSuccess(gender, faceVector) {
   sessionStorage.setItem('genderVerificationPayload', JSON.stringify(payload));
   window.verificationPayload = payload;
 
-  const target = `success.html?gender=${encodeURIComponent(gender)}`;
-  window.location.href = target;
+  window.location.href = `success.html?gender=${encodeURIComponent(verifiedLabel)}&status=success`;
 }
 
 function draw478Landmarks(landmarks) {
@@ -392,7 +408,66 @@ function draw478Landmarks(landmarks) {
   ctx.strokeRect(minX - 10, minY - 10, maxX - minX + 20, maxY - minY + 20);
 }
 
-// Main Continuous Frame Loop
+async function runGenderVerification(landmarks) {
+  if (isDetectingGender) return;
+  if (Date.now() - lastGenderDetectTime < GENDER_DETECT_INTERVAL_MS) return;
+
+  isDetectingGender = true;
+  lastGenderDetectTime = Date.now();
+
+  try {
+    const result = await detectGenderFromVideo();
+    if (!result) {
+      verificationStatus.textContent = 'Analyzing face for gender verification...';
+      instruction.textContent = 'Hold still and keep your face clearly visible.';
+      return;
+    }
+
+    const detectedGender = result.gender;
+    const confidencePercent = Math.round(result.probability * 100);
+    const selectedLabel = capitalizeGender(selectedGender);
+    const detectedLabel = capitalizeGender(detectedGender);
+
+    if (
+      detectedGender === selectedGender &&
+      result.probability >= GENDER_CONFIDENCE_THRESHOLD
+    ) {
+      genderMatchFrames += 1;
+      genderMismatchFrames = 0;
+      verificationStatus.textContent = `Verifying gender... ${genderMatchFrames}/${REQUIRED_MATCH_FRAMES} confirmations (${confidencePercent}% ${detectedLabel})`;
+      instruction.textContent = `Detected ${detectedLabel}. Hold still while we confirm your selection.`;
+
+      if (genderMatchFrames >= REQUIRED_MATCH_FRAMES) {
+        const faceVector = extract128DFaceVector(landmarks);
+        redirectToSuccess(detectedGender, faceVector);
+      }
+      return;
+    }
+
+    if (result.probability >= GENDER_CONFIDENCE_THRESHOLD) {
+      genderMismatchFrames += 1;
+      genderMatchFrames = 0;
+      verificationStatus.textContent = `Gender mismatch detected (${confidencePercent}% ${detectedLabel}).`;
+      instruction.textContent = `You selected ${selectedLabel}, but the camera detected ${detectedLabel}.`;
+
+      if (genderMismatchFrames >= REQUIRED_MISMATCH_FRAMES) {
+        failDetection(
+          `Verification failed. You selected ${selectedLabel}, but we detected ${detectedLabel}. Please try again.`
+        );
+      }
+      return;
+    }
+
+    verificationStatus.textContent = `Analyzing gender... (${confidencePercent}% ${detectedLabel}, need ${Math.round(GENDER_CONFIDENCE_THRESHOLD * 100)}%)`;
+    instruction.textContent = 'Hold still facing the camera in good lighting.';
+  } catch (err) {
+    console.error('Gender detection error:', err);
+    verificationStatus.textContent = 'Gender analysis failed temporarily. Hold still and retrying...';
+  } finally {
+    isDetectingGender = false;
+  }
+}
+
 async function processVideoFrame() {
   if (stream && video && !video.paused && !video.ended) {
     animFrameId = requestAnimationFrame(processVideoFrame);
@@ -409,8 +484,8 @@ async function processVideoFrame() {
     return;
   }
 
-  if (!faceLandmarker) {
-    verificationStatus.textContent = 'Initializing MediaPipe model...';
+  if (!faceLandmarker || !faceApiModelsLoaded) {
+    verificationStatus.textContent = 'Initializing verification models...';
     return;
   }
 
@@ -427,6 +502,7 @@ async function processVideoFrame() {
       clearCanvas();
       verificationStatus.textContent = 'No face detected.';
       instruction.textContent = 'Please align your face directly in front of the camera.';
+      positionStableFrames = 0;
       return;
     }
 
@@ -434,6 +510,7 @@ async function processVideoFrame() {
       clearCanvas();
       verificationStatus.textContent = 'Multiple faces detected.';
       instruction.textContent = 'Ensure only one person is in front of the camera.';
+      positionStableFrames = 0;
       return;
     }
 
@@ -462,9 +539,21 @@ async function processVideoFrame() {
     switch (currentStage) {
       case LIVENESS_STAGES.POSITION:
         livenessStep.textContent = 'Liveness Check: Step 1 of 3 - Position Face';
-        verificationStatus.textContent = 'Face detected! Now please blink your eyes.';
-        instruction.textContent = 'Blink your eyes to pass anti-spoofing liveness check.';
-        currentStage = LIVENESS_STAGES.BLINK;
+        if (isFaceCentered(yawRatio)) {
+          positionStableFrames += 1;
+          verificationStatus.textContent = `Face detected. Hold steady (${positionStableFrames}/${POSITION_STABLE_FRAMES})...`;
+          instruction.textContent = 'Keep your face centered in the frame.';
+
+          if (positionStableFrames >= POSITION_STABLE_FRAMES) {
+            currentStage = LIVENESS_STAGES.BLINK;
+            verificationStatus.textContent = 'Face positioned! Now please blink your eyes.';
+            instruction.textContent = 'Blink your eyes to pass anti-spoofing liveness check.';
+          }
+        } else {
+          positionStableFrames = 0;
+          verificationStatus.textContent = 'Face detected. Center your face in the frame.';
+          instruction.textContent = 'Look straight at the camera in good lighting.';
+        }
         break;
 
       case LIVENESS_STAGES.BLINK:
@@ -473,46 +562,40 @@ async function processVideoFrame() {
           blinkDetected = true;
           currentStage = LIVENESS_STAGES.HEAD_TURN;
           livenessStep.textContent = 'Liveness Check: Step 3 of 3 - Turn Head';
-          verificationStatus.textContent =
-            'Blink verified! Now slowly turn your head sideways.';
-          instruction.textContent =
-            'Slowly turn your head left or right to prove 3D liveness.';
+          verificationStatus.textContent = 'Blink verified! Now slowly turn your head sideways.';
+          instruction.textContent = 'Slowly turn your head left or right to prove 3D liveness.';
+        } else {
+          verificationStatus.textContent = 'Waiting for eye blink...';
+          instruction.textContent = 'Blink both eyes clearly while facing the camera.';
         }
         break;
 
       case LIVENESS_STAGES.HEAD_TURN:
         livenessStep.textContent = 'Liveness Check: Step 3 of 3 - Turn Head';
-        if (yawRatio < 0.4 || yawRatio > 0.6) {
+        if (yawRatio < 0.38 || yawRatio > 0.62) {
           headTurnDetected = true;
           currentStage = LIVENESS_STAGES.VERIFYING;
+          genderMatchFrames = 0;
+          genderMismatchFrames = 0;
           livenessStep.textContent = 'Liveness Check Passed! Verifying Gender...';
-          verificationStatus.textContent = 'Analyzing 478 3D facial landmarks...';
-          instruction.textContent =
-            'Hold still facing the camera for final verification.';
+          verificationStatus.textContent = 'Head turn verified. Face the camera for gender check.';
+          instruction.textContent = 'Look straight at the camera and hold still.';
+        } else {
+          verificationStatus.textContent = 'Turn your head left or right...';
+          instruction.textContent = 'Slowly rotate your head to show 3D liveness.';
         }
         break;
 
       case LIVENESS_STAGES.VERIFYING:
-        const frameScore = computeGenderScoreFromLandmarks(landmarks, selectedGender);
-
-        genderConfidenceBuffer.push(frameScore);
-        if (genderConfidenceBuffer.length > 8) {
-          genderConfidenceBuffer.shift();
-        }
-
-        const avgScore =
-          genderConfidenceBuffer.reduce((a, b) => a + b, 0) /
-          genderConfidenceBuffer.length;
-        const confidencePercent = Math.round(avgScore * 100);
-
-        verificationStatus.textContent = `Verifying Gender... (${confidencePercent}% confidence)`;
-
-        if (avgScore >= 0.6 && genderConfidenceBuffer.length >= 3) {
-          const faceVector = extract128DFaceVector(landmarks);
-          const genderLabel = selectedGender === 'male' ? 'Male' : 'Female';
-          redirectToSuccess(genderLabel, faceVector);
+        livenessStep.textContent = 'Liveness Check Passed! Verifying Gender...';
+        if (!isFaceCentered(yawRatio)) {
+          verificationStatus.textContent = 'Face the camera directly for gender verification.';
+          instruction.textContent = 'Return your head to center and hold still.';
+          genderMatchFrames = 0;
           return;
         }
+
+        await runGenderVerification(landmarks);
         break;
     }
   } catch (err) {
@@ -520,16 +603,20 @@ async function processVideoFrame() {
   }
 }
 
-// Event Listeners
 genderButtons.forEach((button) => {
   button.addEventListener('click', () => {
     selectedGender = button.dataset.gender;
+    selectionStatus.textContent = `Selected: ${capitalizeGender(selectedGender)}. Starting verification...`;
     showVerificationStage();
     loadModels();
   });
 });
 
 retryBtn.addEventListener('click', () => {
+  if (!faceLandmarker || !faceApiModelsLoaded) {
+    loadModels();
+    return;
+  }
   showVerificationStage();
   startCamera();
 });

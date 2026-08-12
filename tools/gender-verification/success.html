@@ -63,13 +63,19 @@
         overflow-y: auto;
         color: #00d2ff;
       }
+
+      a {
+        color: #0d6efd;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>Verification Passed</h1>
+      <h1>Verification Successful</h1>
       <div class="badge">Anti-Spoofing Liveness: Verified</div>
-      <p id="result">Detected gender: Loading...</p>
+      <p id="result">Gender verified: Loading...</p>
+      <p id="statusMessage">Your gender has been verified successfully.</p>
 
       <div class="privacy-box">
         🔒 <strong>Privacy Assured:</strong> Zero video frames or face images were saved
@@ -83,27 +89,43 @@
         </p>
         <pre id="vectorOutput">Loading vector data...</pre>
       </div>
+
+      <p style="margin-top: 20px">
+        <a href="index.html">Back to verification</a>
+      </p>
     </div>
 
     <script>
       const params = new URLSearchParams(window.location.search);
-      const genderParam = params.get('gender') || 'Unknown';
-      document.getElementById('result').textContent = `Verified Gender: ${genderParam}`;
-
       const rawPayload = sessionStorage.getItem('genderVerificationPayload');
+      let payload = null;
+
       if (rawPayload) {
         try {
-          const payload = JSON.parse(rawPayload);
-          console.log('Verification Payload:', payload);
-          document.getElementById('vectorOutput').textContent = JSON.stringify(
-            payload.faceVector,
-            null,
-            2
-          );
+          payload = JSON.parse(rawPayload);
         } catch (e) {
-          document.getElementById('vectorOutput').textContent =
-            'Unable to parse vector data.';
+          payload = null;
         }
+      }
+
+      const genderFromUrl = params.get('gender');
+      const verifiedGender =
+        payload?.verifiedGender || genderFromUrl || 'Unknown';
+
+      document.getElementById('result').textContent =
+        `Gender verified: ${verifiedGender}`;
+
+      if (params.get('status') === 'success' || payload?.livenessVerified) {
+        document.getElementById('statusMessage').textContent =
+          `Verification successful. You have been verified as ${verifiedGender}.`;
+      }
+
+      if (payload?.faceVector) {
+        document.getElementById('vectorOutput').textContent = JSON.stringify(
+          payload.faceVector,
+          null,
+          2
+        );
       } else {
         document.getElementById('vectorOutput').textContent =
           'No vector payload found in session.';
