@@ -53,10 +53,6 @@ const FACE_CENTER_MAX = 0.58;
 const NOSE_TIP = 1;
 const LEFT_CHEEK = 234;
 const RIGHT_CHEEK = 454;
-const FOREHEAD_TOP = 10;
-const CHIN_BOTTOM = 152;
-const LEFT_EYE_OUTER = 33;
-const RIGHT_EYE_OUTER = 263;
 
 function capitalizeGender(gender) {
   if (!gender) return '';
@@ -110,6 +106,8 @@ async function loadFaceApiModels() {
 
   await Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri('models'),
+    faceapi.nets.faceLandmark68Net.loadFromUri('models'),
+    faceapi.nets.faceRecognitionNet.loadFromUri('models'),
     faceapi.nets.ageGenderNet.loadFromUri('models'),
   ]);
 
@@ -297,42 +295,6 @@ function calculateEAR(landmarks, p1, p2, p3, p4, p5, p6) {
   return (v1 + v2) / (2.0 * h || 1.0);
 }
 
-function extract128DFaceVector(landmarks) {
-  const nose = landmarks[NOSE_TIP];
-  const leftEye = landmarks[LEFT_EYE_OUTER];
-  const rightEye = landmarks[RIGHT_EYE_OUTER];
-
-  const interOcularDist =
-    Math.hypot(
-      rightEye.x - leftEye.x,
-      rightEye.y - leftEye.y,
-      (rightEye.z || 0) - (leftEye.z || 0)
-    ) || 1.0;
-
-  const vector = [];
-  const step = Math.floor(landmarks.length / 42);
-  for (let i = 0; i < 42; i++) {
-    const idx = (i * step) % landmarks.length;
-    const pt = landmarks[idx];
-    vector.push(parseFloat(((pt.x - nose.x) / interOcularDist).toFixed(5)));
-    vector.push(parseFloat(((pt.y - nose.y) / interOcularDist).toFixed(5)));
-    vector.push(parseFloat((((pt.z || 0) - (nose.z || 0)) / interOcularDist).toFixed(5)));
-  }
-
-  const cheekDist = Math.hypot(
-    landmarks[RIGHT_CHEEK].x - landmarks[LEFT_CHEEK].x,
-    landmarks[RIGHT_CHEEK].y - landmarks[LEFT_CHEEK].y
-  );
-  const faceHeight = Math.hypot(
-    landmarks[CHIN_BOTTOM].x - landmarks[FOREHEAD_TOP].x,
-    landmarks[CHIN_BOTTOM].y - landmarks[FOREHEAD_TOP].y
-  );
-  vector.push(parseFloat((cheekDist / interOcularDist).toFixed(5)));
-  vector.push(parseFloat((faceHeight / interOcularDist).toFixed(5)));
-
-  return vector;
-}
-
 function isFaceCentered(yawRatio) {
   return yawRatio >= FACE_CENTER_MIN && yawRatio <= FACE_CENTER_MAX;
 }
@@ -353,6 +315,22 @@ async function detectGenderFromVideo() {
   };
 }
 
+async function computeFaceDescriptorFromVideo() {
+  const detection = await faceapi
+    .detectSingleFace(
+      video,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })
+    )
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+
+  if (!detection || !detection.descriptor) {
+    return null;
+  }
+
+  return Array.from(detection.descriptor);
+}
+
 function redirectToSuccess(gender, faceVector) {
   stopCamera();
   clearCanvas();
@@ -365,6 +343,7 @@ function redirectToSuccess(gender, faceVector) {
     livenessVerified: true,
     livenessChallengesPassed: ['FacePositioned', 'EyeBlink', 'HeadTurn'],
     faceVector: faceVector,
+    faceVectorSource: 'face-api-faceRecognitionNet',
     landmarkCount: 478,
     timestamp: new Date().toISOString(),
   };
@@ -409,7 +388,7 @@ function draw478Landmarks(landmarks) {
   ctx.strokeRect(minX - 10, minY - 10, maxX - minX + 20, maxY - minY + 20);
 }
 
-async function runGenderVerification(landmarks) {
+async function runGenderVerification() {
   if (isDetectingGender) return;
   if (Date.now() - lastGenderDetectTime < GENDER_DETECT_INTERVAL_MS) return;
 
@@ -439,7 +418,18 @@ async function runGenderVerification(landmarks) {
       instruction.textContent = `Detected ${detectedLabel}. Hold still while we confirm your selection.`;
 
       if (genderMatchFrames >= REQUIRED_MATCH_FRAMES) {
-        const faceVector = extract128DFaceVector(landmarks);
+        verificationStatus.textContent =
+          'Gender verified. Extracting 128D face descriptor...';
+        instruction.textContent = 'Hold still for a moment.';
+
+        const faceVector = await computeFaceDescriptorFromVideo();
+        if (!faceVector || faceVector.length !== 128) {
+          failDetection(
+            'Gender verified, but face descriptor extraction failed. Please try again.'
+          );
+          return;
+        }
+
         redirectToSuccess(detectedGender, faceVector);
       }
       return;
@@ -604,7 +594,7 @@ async function processVideoFrame() {
           return;
         }
 
-        await runGenderVerification(landmarks);
+        await runGenderVerification();
         break;
     }
   } catch (err) {
