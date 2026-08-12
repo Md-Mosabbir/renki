@@ -272,7 +272,8 @@ function failDetection(message = 'Verification failed.') {
   stopCamera();
   clearCanvas();
   verificationStatus.textContent = message;
-  instruction.textContent = 'Please try again in better lighting, ensure your face is visible, and complete all challenges.';
+  instruction.textContent =
+    'Please try again in better lighting, ensure your face is visible, and complete all challenges.';
   counter.textContent = 'Time remaining: 0s';
   verifiedGender = '';
   window.verifiedGender = verifiedGender;
@@ -462,7 +463,8 @@ async function runGenderVerification(landmarks) {
     instruction.textContent = 'Hold still facing the camera in good lighting.';
   } catch (err) {
     console.error('Gender detection error:', err);
-    verificationStatus.textContent = 'Gender analysis failed temporarily. Hold still and retrying...';
+    verificationStatus.textContent =
+      'Gender analysis failed temporarily. Hold still and retrying...';
   } finally {
     isDetectingGender = false;
   }
@@ -546,12 +548,15 @@ async function processVideoFrame() {
 
           if (positionStableFrames >= POSITION_STABLE_FRAMES) {
             currentStage = LIVENESS_STAGES.BLINK;
-            verificationStatus.textContent = 'Face positioned! Now please blink your eyes.';
-            instruction.textContent = 'Blink your eyes to pass anti-spoofing liveness check.';
+            verificationStatus.textContent =
+              'Face positioned! Now please blink your eyes.';
+            instruction.textContent =
+              'Blink your eyes to pass anti-spoofing liveness check.';
           }
         } else {
           positionStableFrames = 0;
-          verificationStatus.textContent = 'Face detected. Center your face in the frame.';
+          verificationStatus.textContent =
+            'Face detected. Center your face in the frame.';
           instruction.textContent = 'Look straight at the camera in good lighting.';
         }
         break;
@@ -562,8 +567,10 @@ async function processVideoFrame() {
           blinkDetected = true;
           currentStage = LIVENESS_STAGES.HEAD_TURN;
           livenessStep.textContent = 'Liveness Check: Step 3 of 3 - Turn Head';
-          verificationStatus.textContent = 'Blink verified! Now slowly turn your head sideways.';
-          instruction.textContent = 'Slowly turn your head left or right to prove 3D liveness.';
+          verificationStatus.textContent =
+            'Blink verified! Now slowly turn your head sideways.';
+          instruction.textContent =
+            'Slowly turn your head left or right to prove 3D liveness.';
         } else {
           verificationStatus.textContent = 'Waiting for eye blink...';
           instruction.textContent = 'Blink both eyes clearly while facing the camera.';
@@ -578,7 +585,8 @@ async function processVideoFrame() {
           genderMatchFrames = 0;
           genderMismatchFrames = 0;
           livenessStep.textContent = 'Liveness Check Passed! Verifying Gender...';
-          verificationStatus.textContent = 'Head turn verified. Face the camera for gender check.';
+          verificationStatus.textContent =
+            'Head turn verified. Face the camera for gender check.';
           instruction.textContent = 'Look straight at the camera and hold still.';
         } else {
           verificationStatus.textContent = 'Turn your head left or right...';
@@ -589,7 +597,8 @@ async function processVideoFrame() {
       case LIVENESS_STAGES.VERIFYING:
         livenessStep.textContent = 'Liveness Check Passed! Verifying Gender...';
         if (!isFaceCentered(yawRatio)) {
-          verificationStatus.textContent = 'Face the camera directly for gender verification.';
+          verificationStatus.textContent =
+            'Face the camera directly for gender verification.';
           instruction.textContent = 'Return your head to center and hold still.';
           genderMatchFrames = 0;
           return;

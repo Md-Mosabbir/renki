@@ -109,8 +109,7 @@
       }
 
       const genderFromUrl = params.get('gender');
-      const verifiedGender =
-        payload?.verifiedGender || genderFromUrl || 'Unknown';
+      const verifiedGender = payload?.verifiedGender || genderFromUrl || 'Unknown';
 
       document.getElementById('result').textContent =
         `Gender verified: ${verifiedGender}`;
