@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Gender Verification</title>
+    <script type="module">
+      import { FaceLandmarker, FilesetResolver } from './vision_bundle.mjs';
+      window.FaceLandmarker = FaceLandmarker;
+      window.FilesetResolver = FilesetResolver;
+    </script>
+    <script defer src="face-api.min.js"></script>
+    <script defer src="script.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+      }
+
+      .container {
+        position: relative;
+        text-align: center;
+        padding: 24px;
+        border-radius: 16px;
+        background: #1b1b1b;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .buttons {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 16px 0 0;
+      }
+
+      button {
+        padding: 10px 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        background: #0d6efd;
+        color: white;
+        transition: opacity 0.2s;
+      }
+
+      button.secondary {
+        background: #6c757d;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      .video-container {
+        position: relative;
+        display: inline-block;
+        width: 720px;
+        height: 560px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #000;
+      }
+
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 12px;
+      }
+
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+      }
+
+      #selectionStatus,
+      #verificationStatus,
+      #livenessStep,
+      #instruction,
+      #counter {
+        margin: 8px 0 0;
+        min-height: 24px;
+      }
+
+      #livenessStep {
+        font-size: 17px;
+        font-weight: bold;
+        color: #0d6efd;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div id="selectionPanel">
+        <h1>Gender Verification</h1>
+        <p>Select your gender to begin verification.</p>
+        <div class="buttons">
+          <button data-gender="male">Male</button>
+          <button data-gender="female">Female</button>
+        </div>
+        <p id="selectionStatus">Please select your gender.</p>
+      </div>
+
+      <div id="verificationPanel" class="hidden">
+        <div class="video-container">
+          <video id="video" width="720" height="560" autoplay muted playsinline></video>
+        </div>
+        <p id="livenessStep">Liveness Check: Step 1 of 3 - Position Face</p>
+        <p id="verificationStatus">Opening camera to verify...</p>
+        <p id="instruction">Please face the camera directly in good lighting.</p>
+        <p id="counter">Time remaining: 30s</p>
+        <div class="buttons">
+          <button id="retryBtn" class="hidden">Try Again</button>
+          <button id="backBtn" class="secondary">Back to Selection</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
