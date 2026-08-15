@@ -65,6 +65,17 @@ jobs:
       - name: Build
         run: npm run build -w @renki/backend
 
+      # Unit tests only — nothing here touches Postgres, so no service container
+      # is needed. vitest.config.ts supplies dummy values for the env vars that
+      # env.ts refuses to default, which is the only reason importing the app
+      # does not throw here.
+      #
+      # Note vitest exits 1 when it finds no test files at all, deliberately:
+      # a run that silently passes because the tests stopped being discovered is
+      # worse than a red build.
+      - name: Test
+        run: npm test -w @renki/backend
+
   docker:
     name: Docker image builds and boots
     runs-on: ubuntu-latest
