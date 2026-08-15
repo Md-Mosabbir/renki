@@ -1,6 +1,7 @@
 Renki — PostgreSQL Schema
 
 ## Layout
+
 ```
 src/
   schema/   -- 00-10, CREATE TABLE only, run in numeric order (FK-safe)
@@ -9,6 +10,7 @@ src/
 ```
 
 ## Run it
+
 ```bash
 createdb renki
 
@@ -19,6 +21,7 @@ psql -d nsu_rideshare -f src/verify.sql
 ```
 
 ## Entities
+
 users, locations, gender_verifications, friendships, ride_histories,
 ride_groups, ride_requests, qr_verifications, uber_integrations, reports.
 

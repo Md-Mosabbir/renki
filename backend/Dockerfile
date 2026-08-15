@@ -41,6 +41,12 @@ COPY --from=builder /app/backend/dist ./backend/dist
 COPY package.json ./
 COPY backend/package.json ./backend/
 
+# tsc emits only .js, so migrations would never reach dist/. Copy them in
+# explicitly — without this `migrate:prod` finds an empty directory and reports
+# "up to date" against an empty database, which fails silently instead of
+# loudly. Seeds are deliberately NOT copied: they truncate every table.
+COPY backend/migrations ./backend/migrations
+
 # The node image ships a non-root `node` user; use it.
 USER node
 

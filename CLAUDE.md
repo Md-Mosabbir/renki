@@ -53,15 +53,39 @@ with `moduleResolution: NodeNext`. `ERR_MODULE_NOT_FOUND` is almost always this.
 Raw SQL over `node-postgres`. **No ORM** — a deliberate team decision; don't
 propose Prisma/Drizzle/TypeORM.
 
-- `backend/src/db/pool.ts` owns the single `pg.Pool`. Never construct another
-  `Pool` or `Client` anywhere.
-- Use `query()` / `transaction()` from that module.
+- `backend/src/db/pool.ts` owns the single `pg.Pool`, as an explicit
+  **Singleton** (`Database.getInstance()`, private constructor). Never construct
+  another `Pool` or `Client` anywhere.
+- Prefer the module-level `query()` / `transaction()` helpers over
+  `Database.getInstance().query()` — call sites should not need to know the
+  Singleton exists.
 - **Always parameterise**: `query('... WHERE id = $1', [id])`. Never interpolate
   into SQL strings.
 - `query<T>()`'s generic is an assertion, not a check — Postgres does not verify
   it, so keep it honest against migrations by hand.
-- No migration tool yet, and no tables. When one is needed, use a plain-SQL
-  runner so `.sql` files stay authoritative.
+
+### Migrations
+
+`backend/migrations/*.sql`, applied by `npm run migrate` (root). The runner is
+`backend/src/db/migrate.ts` — it lists the directory, subtracts what is already
+recorded in `schema_migrations`, and runs the rest in filename order, each file
+and its ledger row in one transaction.
+
+**`migrations/` and `seeds/` sit outside `src/` on purpose.** `tsc` emits only
+`.js`, so `.sql` under `src/` would never reach `dist/` or the shipped image.
+`backend/Dockerfile` copies `migrations/` in explicitly; do not remove that line.
+
+**An applied migration is frozen.** Editing a file that already ran changes
+nothing on machines that ran it, so schemas silently diverge. Add a new
+higher-numbered file. There are no `down` migrations — fix forward.
+
+`npm run seed` loads `backend/seeds/` for local development. It **truncates
+every table first** so it can be re-run; it refuses to start under
+`NODE_ENV=production`. Seeds are never copied into the production image.
+
+`backend/scripts/verify.sql` is a psql-only sanity check (`psql "$DATABASE_URL"
+-f ...`). It uses `\dt`/`\d+` meta-commands, so it can never run through
+`node-postgres`.
 
 ## Architecture
 

@@ -64,6 +64,10 @@ services:
       # Mount the source for live reload, but keep the container's own
       # node_modules so host/linux binaries never clash.
       - ./backend/src:/app/backend/src
+      # Migrations and seeds sit outside src/ (see backend/Dockerfile), so they
+      # need their own mounts or a new .sql on the host stays invisible in here.
+      - ./backend/migrations:/app/backend/migrations
+      - ./backend/seeds:/app/backend/seeds
       - /app/node_modules
 
 volumes:
