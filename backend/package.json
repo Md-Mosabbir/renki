@@ -16,6 +16,8 @@
     "seed": "tsx src/db/seed.ts",
     "//migrate:prod": "The shipped image has no tsx — it runs the compiled build.",
     "migrate:prod": "node dist/db/migrate.js",
+    "//schema:snapshot": "Regenerates schema.sql from the live DB. Run after migrate.",
+    "schema:snapshot": "bash scripts/snapshot-schema.sh",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

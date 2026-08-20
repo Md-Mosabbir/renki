@@ -18,6 +18,7 @@
     "auth:test": "npx serve tools/auth-test -l 3000",
     "migrate": "npm run migrate -w @renki/backend",
     "seed": "npm run seed -w @renki/backend",
+    "schema:snapshot": "npm run schema:snapshot -w @renki/backend",
     "verification:test": "npx serve tools/gender-verification -l 3001",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

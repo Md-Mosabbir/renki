@@ -87,6 +87,26 @@ every table first** so it can be re-run; it refuses to start under
 -f ...`). It uses `\dt`/`\d+` meta-commands, so it can never run through
 `node-postgres`.
 
+### Reading the current schema
+
+**`migrations/` is a changelog, not a schema.** No file there says what a table
+looks like _now_ — `users` alone is spread across five of them. Do not try to
+replay them in your head.
+
+`backend/schema.sql` is the answer instead: a generated snapshot of the live
+database, and the file to read when planning a feature. It is **generated — never
+edit it**. Regenerate after every migration:
+
+```bash
+npm run migrate && npm run schema:snapshot
+```
+
+Commit the two together. The snapshot diff is the review artifact: it shows what
+a migration actually did, which is easier to check than the SQL that did it.
+
+For a single table, `psql "$DATABASE_URL" -c '\d users'` is faster and also shows
+inbound foreign keys.
+
 ## Architecture
 
 MVC, strictly layered: **routes → controllers → services → models**. Each layer

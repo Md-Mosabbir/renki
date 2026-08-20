@@ -4,6 +4,9 @@ import { SignJWT, jwtVerify } from 'jose';
 import type { JWTPayload } from 'jose';
 
 import { env } from '../config/env.js';
+import type { PublicUser } from '../models/user.model.js';
+import { toPublicUser } from '../models/user.model.js';
+import { upsertFromGoogle } from './user.service.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**
@@ -14,7 +17,9 @@ import { HttpError } from '../utils/http-error.js';
  * Google's published public keys. Renki's JWT is the session credential, signed
  * by us (HS256) with a shared secret. Google is not involved after login.
  *
- * No database yet — Google's `sub` is used directly as the user id.
+ * Sign-in creates or finds the `users` row, and the JWT's `sub` is that row's
+ * UUID — never Google's `sub`. Everything downstream joins on `users.id`, so a
+ * token carrying a Google identifier would look valid and match no row.
  */
 
 // Built once. OAuth2Client caches Google's signing keys; constructing it per
@@ -24,16 +29,22 @@ const googleClient = new OAuth2Client(env.clientId);
 // jose signs with bytes, not strings. Encode once.
 const jwtSecret = new TextEncoder().encode(env.jwtSecret);
 
+/**
+ * The identity `requireAuth` puts on `req.user`.
+ *
+ * Only what the token itself proves. Anything mutable — name, gender,
+ * trust_stage, whether onboarding is done — is deliberately absent: a 7-day
+ * token would still be asserting a trust_stage of 'new' long after the student
+ * was verified. Handlers that need the current state load the row.
+ */
 export interface AuthUser {
   id: string;
   email: string;
-  name: string;
-  picture?: string;
 }
 
 export interface AuthResult {
   token: string;
-  user: AuthUser;
+  user: PublicUser;
 }
 
 /**
@@ -70,23 +81,32 @@ export async function googleAuthenticate(credential: string): Promise<AuthResult
     throw new HttpError(403, `Renki is open to @${env.allowedEmailDomain} accounts only`);
   }
 
-  const user: AuthUser = {
-    // `sub` is Google's stable identity key. Emails get reassigned after
-    // graduation; `sub` never is.
-    id: payload.sub,
-    email: payload.email.toLowerCase(),
-    name: payload.name ?? payload.email,
-    ...(payload.picture ? { picture: payload.picture } : {}),
-  };
+  const email = payload.email.toLowerCase();
 
-  const token = await new SignJWT({ email: user.email, name: user.name })
+  // Create the row on first sign-in, find it on every one after. `payload.sub`
+  // is Google's stable identity key — emails get reassigned after graduation,
+  // `sub` never is — so it is the column matched on, not stored as the user id.
+  const row = await upsertFromGoogle({
+    googleId: payload.sub,
+    email,
+    name: payload.name ?? email,
+    ...(payload.picture ? { pictureUrl: payload.picture } : {}),
+  });
+
+  const token = await signAccessToken(row.id, row.email);
+
+  // profileCompleted on the returned user is what the client branches on: false
+  // sends the student into the onboarding form, true into the app.
+  return { token, user: toPublicUser(row) };
+}
+
+async function signAccessToken(userId: string, email: string): Promise<string> {
+  return new SignJWT({ email })
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(user.id)
+    .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime(env.jwtExpiresIn)
     .sign(jwtSecret);
-
-  return { token, user };
 }
 
 /**
@@ -103,10 +123,10 @@ export async function verifyAccessToken(token: string): Promise<AuthUser> {
     throw new HttpError(401, 'Invalid or expired token');
   }
 
-  const { sub, email, name } = payload;
+  const { sub, email } = payload;
   if (typeof sub !== 'string' || typeof email !== 'string') {
     throw new HttpError(401, 'Malformed token payload');
   }
 
-  return { id: sub, email, name: typeof name === 'string' ? name : email };
+  return { id: sub, email };
 }
