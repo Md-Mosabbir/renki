@@ -12,7 +12,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @renki/backend",
-    "build": "npm run build -w @renki/backend",
+    "dev:web": "npm run dev -w @renki/frontend",
+    "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "auth:test": "npx serve tools/auth-test -l 3000",

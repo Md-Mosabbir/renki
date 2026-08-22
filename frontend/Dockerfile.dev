@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+
+# Development image: the Next dev server with hot reload. The source is bind
+# mounted by docker-compose, so nothing here is copied except the manifests
+# needed to install.
+#
+# Build context is the REPO ROOT — see frontend/Dockerfile.
+
+FROM node:22-alpine
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
+RUN npm ci
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 3000
+
+# --hostname 0.0.0.0, not the default localhost: a dev server bound to loopback
+# inside a container is unreachable from the host no matter what is published.
+CMD ["npm", "run", "dev", "-w", "@renki/frontend", "--", "--hostname", "0.0.0.0"]

@@ -70,5 +70,35 @@ services:
       - ./backend/seeds:/app/backend/seeds
       - /app/node_modules
 
+  web:
+    build:
+      # Root context so the workspace lockfile is visible to npm ci.
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      # Only so the API is up before the first request; the dev server itself
+      # does not need it to boot, and Next renders fine without a live backend.
+      - api
+    ports:
+      - '3000:3000'
+    environment:
+      # In the browser, not in the container: this URL is fetched by the user's
+      # own machine, so it must be the PUBLISHED host address. `http://api:4000`
+      # resolves only inside the compose network and would fail in the browser.
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    env_file:
+      # NEXT_PUBLIC_GOOGLE_CLIENT_ID lives here. Same file the local dev server
+      # reads, so the two cannot drift apart.
+      - path: ./frontend/.env.local
+        required: false
+    volumes:
+      # Source for hot reload, but keep the container's own node_modules and
+      # .next so host/linux binaries and build output never clash.
+      - ./frontend:/app/frontend
+      - /app/node_modules
+      - /app/frontend/node_modules
+      - /app/frontend/.next
+
 volumes:
   renki-pgdata:

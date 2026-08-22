@@ -33,4 +33,11 @@ export const env = {
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: required('JWT_EXPIRES_IN', '7d'),
   allowedEmailDomain: required('ALLOWED_EMAIL_DOMAIN', 'northsouth.edu'),
+
+  // Optional, and the only variable here that is allowed to be absent. Empty
+  // means "no Python face service configured", which selects the mock matcher
+  // — that is what lets `npm run dev` and CI run the whole verification flow
+  // with nothing else deployed. Set it and the real matcher takes over.
+  faceApiUrl: process.env.FACE_API_URL ?? '',
+  faceApiSecret: process.env.FACE_API_SECRET ?? '',
 } as const;

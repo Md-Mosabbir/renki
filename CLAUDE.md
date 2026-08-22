@@ -1,16 +1,16 @@
 # Renki
 
 University ride-sharing platform. npm workspaces monorepo: `backend/` is an
-Express 5 + TypeScript API; `frontend/` is declared in workspaces but not
-scaffolded yet.
+Express 5 + TypeScript API; `frontend/` is a Next.js 16 web client.
 
 ## Commands
 
 Always run from the **repo root**. There is one lockfile and it lives there.
 
 ```bash
-npm install                            # never run this inside backend/
+npm install                            # never run this inside a workspace
 npm run dev -w @renki/backend          # API on :4000
+npm run dev -w @renki/frontend         # web on :3000
 docker compose up -d db                # Postgres on host :5433
 ```
 
@@ -21,6 +21,10 @@ npm run format:check                   # root, covers all workspaces
 npm run lint      -w @renki/backend
 npm run typecheck -w @renki/backend
 npm run build     -w @renki/backend
+npm test          -w @renki/backend
+npm run lint      -w @renki/frontend
+npm run typecheck -w @renki/frontend
+npm run build     -w @renki/frontend
 ```
 
 ## Things that are load-bearing
@@ -130,11 +134,50 @@ All `process.env` reads go through `backend/src/config/env.ts` — nowhere else.
 Add new variables there so the app fails loudly at startup instead of silently
 becoming `undefined` mid-request. `DATABASE_URL` intentionally has no default.
 
+## Frontend
+
+Next.js 16 (App Router) + Tailwind v4 + shadcn/ui, in `frontend/`.
+
+**Port 3000 is pinned, not a default.** The backend's `CORS_ORIGIN` expects it
+and Google Sign-In only accepts registered JavaScript origins. Changing it
+breaks both.
+
+**This is not the Next.js in your training data.** `frontend/AGENTS.md` says so
+and it is right — read `node_modules/next/dist/docs/` before writing app code.
+The two that have already bitten:
+
+- `middleware.ts` is now **`proxy.ts`**, exporting `proxy`, nodejs runtime only.
+- Request APIs (`params`, `searchParams`, `cookies()`) are async.
+
+**`NEXT_PUBLIC_*` is inlined at build time, not read at runtime.** Setting one
+in a container's `environment:` does nothing — the value is already baked into
+the browser bundle. They must be passed as Docker `--build-arg` and as `env:` on
+the CI build step. Neither of ours is secret (a Google client ID is public by
+design), and no real secret may ever carry that prefix.
+
+**`lib/api/index.ts` is the mock/real seam.** Every method is tagged REAL or
+MOCK in one place. The backend is only partly built, so this is deliberately a
+mixture; when an endpoint lands, its line moves from `mockApi` to `httpApi` and
+no component changes, because `lib/api/types.ts` already mirrors the backend's
+`PublicUser` field for field. Keep those two in step by hand.
+
+**`frontend/components/ui/` is vendored, not authored.** `shadcn add` rewrites
+those files from the registry, so `.prettierignore` excludes them — formatting
+them would make every future `add` produce a spurious diff.
+
 ## CI
 
-`.github/workflows/backend-ci.yml` — runs on PRs into `main` and pushes to
-`main`, path-filtered to `backend/**` plus the root lockfile. Pushes to feature
-branches do **not** trigger it. CI only; there is no deploy step.
+Two workflows, one per workspace, each path-filtered so a change to one never
+pays for the other's run. Both trigger on PRs into `main` and pushes to `main`;
+pushes to feature branches do **not** trigger either. CI only; no deploy step.
 
-Keep `frontend/` work out of the backend workflow's path filter, and vice versa —
+| Workflow          | Filter        | Jobs                                      |
+| ----------------- | ------------- | ----------------------------------------- |
+| `backend-ci.yml`  | `backend/**`  | lint, typecheck, build, test; Docker boot |
+| `frontend-ci.yml` | `frontend/**` | lint, typecheck, build; Docker boot       |
+
+Both also watch the root `package.json` and `package-lock.json`, and both run
+the root `format:check`, which covers every workspace.
+
+Keep `frontend/` work out of the backend workflow's path filter and vice versa —
 that separation is what keeps the monorepo's CI cheap.

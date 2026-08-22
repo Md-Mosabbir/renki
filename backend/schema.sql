@@ -69,8 +69,21 @@ CREATE TABLE public.gender_verifications (
     video_retained boolean DEFAULT false NOT NULL,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT gender_verifications_verification_status_check CHECK (((verification_status)::text = ANY ((ARRAY['pending'::character varying, 'verified'::character varying, 'failed'::character varying])::text[])))
+    match_distance real,
+    match_threshold real,
+    matcher character varying(40),
+    reviewed_by_user_id uuid,
+    review_note text,
+    CONSTRAINT chk_verification_distance_sane CHECK (((match_distance IS NULL) OR (match_distance >= (0)::double precision))),
+    CONSTRAINT chk_verification_status CHECK (((verification_status)::text = ANY ((ARRAY['pending'::character varying, 'under_review'::character varying, 'verified'::character varying, 'failed'::character varying])::text[])))
 );
+
+
+--
+-- Name: COLUMN gender_verifications.match_distance; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.match_distance IS 'Raw distance from the face matcher. Compare against match_threshold — the scale is model-specific and means nothing on its own.';
 
 
 --
@@ -273,6 +286,8 @@ CREATE TABLE public.users (
     phone character varying(20),
     student_id character varying(20),
     profile_completed_at timestamp with time zone,
+    is_admin boolean DEFAULT false NOT NULL,
+    id_card_captured_at timestamp with time zone,
     CONSTRAINT chk_users_dob_sane CHECK (((date_of_birth IS NULL) OR ((date_of_birth > '1940-01-01'::date) AND (date_of_birth < CURRENT_DATE)))),
     CONSTRAINT chk_users_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying, 'unspecified'::character varying])::text[]))),
     CONSTRAINT chk_users_phone_format CHECK (((phone IS NULL) OR ((phone)::text ~ '^\+8801[3-9][0-9]{8}$'::text))),
@@ -286,7 +301,7 @@ CREATE TABLE public.users (
 -- Name: COLUMN users.id_card_image_url; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.users.id_card_image_url IS 'Transient. Holds the uploaded card only while it is being checked against student_id, then must be NULLed. Never a permanent store of the document.';
+COMMENT ON COLUMN public.users.id_card_image_url IS 'Path to the student ID card image in the private storage bucket. RETAINED as the reference photo for ride-time identity challenges (see migration 17; supersedes the transient-use note in migration 15). Obligations: private bucket only, never a public URL; serve through short-lived signed URLs; delete when the account is deleted.';
 
 
 --
@@ -294,6 +309,13 @@ COMMENT ON COLUMN public.users.id_card_image_url IS 'Transient. Holds the upload
 --
 
 COMMENT ON COLUMN public.users.profile_completed_at IS 'When the onboarding form was submitted. NULL means the form is unfinished. Separate from trust_stage, which tracks gender verification.';
+
+
+--
+-- Name: COLUMN users.id_card_captured_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.id_card_captured_at IS 'When the retained ID card image was captured. Drives retention and re-capture prompts; NULL means no card is on file.';
 
 
 --
@@ -528,6 +550,20 @@ CREATE INDEX friendships_addressee_idx ON public.friendships USING btree (addres
 
 
 --
+-- Name: gender_verifications_queue_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gender_verifications_queue_idx ON public.gender_verifications USING btree (created_at) WHERE ((verification_status)::text = 'under_review'::text);
+
+
+--
+-- Name: gender_verifications_reviewed_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gender_verifications_reviewed_by_idx ON public.gender_verifications USING btree (reviewed_by_user_id);
+
+
+--
 -- Name: reports_group_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -646,6 +682,14 @@ ALTER TABLE ONLY public.friendships
 
 ALTER TABLE ONLY public.friendships
     ADD CONSTRAINT friendships_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gender_verifications gender_verifications_reviewed_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gender_verifications
+    ADD CONSTRAINT gender_verifications_reviewed_by_user_id_fkey FOREIGN KEY (reviewed_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

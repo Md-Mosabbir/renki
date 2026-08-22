@@ -3,3 +3,13 @@ dist
 coverage
 package-lock.json
 *.min.js
+
+# Next.js build output — generated, and huge.
+.next
+out
+next-env.d.ts
+
+# shadcn/ui components are vendored, not authored: `shadcn add` rewrites them
+# from the registry. Reformatting them means every future `add` produces a
+# spurious diff, so they keep the registry's own formatting.
+frontend/components/ui

@@ -1,0 +1,121 @@
+name: Frontend CI
+
+# Path-filtered to the frontend workspace, mirroring backend-ci.yml. A
+# backend-only commit never pays for this run — that separation is what keeps
+# the monorepo's CI cheap.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first run still in flight.
+# Never cancel on main — those runs are the record of what actually landed.
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # One lockfile at the repo root — npm workspaces hoists everything.
+          cache-dependency-path: package-lock.json
+
+      # ci, not install: installs exactly what package-lock.json pins and fails
+      # if the lockfile and package.json have drifted apart. Run from the root
+      # so every workspace is linked.
+      - name: Install dependencies
+        run: npm ci
+
+      # Prettier config lives at the root and covers every workspace.
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint -w @renki/frontend
+
+      # `next build` type-checks too, but it does so after bundling. Running tsc
+      # first means a type error fails in seconds instead of minutes.
+      - name: Typecheck
+        run: npm run typecheck -w @renki/frontend
+
+      # NEXT_PUBLIC_* values are inlined at build time, so the build needs them
+      # present or every reference compiles to undefined. These are placeholders
+      # — CI never signs in, and neither value is a secret.
+      - name: Build
+        run: npm run build -w @renki/frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000/api
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-not-a-real-client-id
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    # Only worth the minutes if the code itself is sound.
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Context is the repo root, not frontend/ — the Dockerfile needs the
+      # workspace lockfile, which only exists there.
+      - name: Build production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: renki-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:4000/api
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=ci-not-a-real-client-id
+
+      # Boots the real production image and polls the root route. Catches
+      # "image builds but the server crashes on startup", which a build alone
+      # cannot — standalone output has its own runtime file layout.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name renki-web-ci -p 3000:3000 renki-web:ci
+
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:3000/ > /dev/null; then
+              echo "frontend responded"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "frontend never came up"
+          exit 1
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs renki-web-ci || true
