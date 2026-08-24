@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
@@ -11,35 +11,35 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StepShell } from '@/components/onboarding/step-shell';
-import { FaceScan } from '@/components/onboarding/face-scan';
 
 /**
  * Onboarding.
  *
- * Four steps: who you are, your gender, a mocked face scan, and the result.
+ * Two steps: who you are, and your gender. Then you are in.
  *
- * The gender step and the verification step are deliberately separate even
- * though the mock infers one from the other. They answer different questions —
- * what the student declares, and whether Renki confirmed it — and the backend
- * tracks them in different columns (`users.gender` vs `trust_stage`). Collapsing
- * them here would make the real flow a rewrite rather than a swap.
+ * Verification is deliberately NOT here. It used to be a third step running a
+ * mocked scan that always passed, which made every account verified on signup
+ * and left the unverified state — the one most of the app branches on — with no
+ * way to reach it. Now signing up gets you an account, and verifying is a
+ * separate act you take from the dashboard when you are ready.
+ *
+ * That also matches the columns: `users.profile_completed_at` is what this
+ * screen writes, and `users.trust_stage` is what verification writes. Two
+ * questions, two columns, two moments.
  */
 
-type Step = 'details' | 'gender' | 'scan' | 'result';
+type Step = 'details' | 'gender';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 2;
 const STEP_INDEX: Record<Step, number> = {
   details: 1,
   gender: 2,
-  scan: 3,
-  result: 4,
 };
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('details');
   const [pending, setPending] = useState(false);
-  const [outcome, setOutcome] = useState<'verified' | 'failed'>('verified');
 
   const [details, setDetails] = useState({
     name: '',
@@ -49,30 +49,29 @@ export default function OnboardingPage() {
   });
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
 
-  const handleScanComplete = useCallback(
-    async (result: 'verified' | 'failed') => {
-      setOutcome(result);
+  const submit = useCallback(async () => {
+    if (!gender) return;
 
-      if (result === 'verified' && gender) {
-        const profile: ProfileInput = {
-          ...details,
-          university: 'North South University',
-          gender,
-        };
-        try {
-          await api.completeProfile(profile);
-          await api.verifyIdentity('verified');
-        } catch (err) {
-          toast.error(
-            err instanceof ApiError ? err.message : 'Could not save your details'
-          );
-        }
-      }
+    setPending(true);
+    const profile: ProfileInput = {
+      ...details,
+      university: 'North South University',
+      gender,
+    };
 
-      setStep('result');
-    },
-    [details, gender]
-  );
+    try {
+      await api.completeProfile(profile);
+      // Straight to the dashboard, not to a success screen. The account is not
+      // verified yet, so a page saying "you're all set" would be a lie — the
+      // dashboard's own unverified banner is the honest version of that message.
+      router.push('/rides');
+    } catch (err) {
+      // Stay on the form. Bouncing to a result screen on a 409 (duplicate phone
+      // or student ID) would strand the student with no field to correct.
+      toast.error(err instanceof ApiError ? err.message : 'Could not save your details');
+      setPending(false);
+    }
+  }, [details, gender, router]);
 
   if (step === 'details') {
     const complete =
@@ -137,117 +136,56 @@ export default function OnboardingPage() {
     );
   }
 
-  if (step === 'gender') {
-    return (
-      <StepShell
-        step={STEP_INDEX.gender}
-        total={TOTAL_STEPS}
-        title="Select your gender"
-        subtitle="Renki only ever matches you with riders of the same gender. This cannot be changed after verification."
-        onBack={() => setStep('details')}
-        footer={
-          <Button
-            size="lg"
-            disabled={gender === null}
-            onClick={() => setStep('scan')}
-            className="group h-14 w-full justify-between rounded-none text-base"
-          >
-            Continue
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-          </Button>
-        }
-      >
-        {/* Two large targets rather than a radio list: this is the single most
-            consequential answer in the flow and it is tapped one-handed. */}
-        <div className="grid grid-cols-2 gap-3">
-          {(['female', 'male'] as const).map((value) => {
-            const selected = gender === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setGender(value)}
-                aria-pressed={selected}
-                className={`flex aspect-square flex-col items-center justify-center gap-3 border-2 transition-all ${
-                  selected
-                    ? 'border-brand bg-brand-muted'
-                    : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <span
-                  className={`size-3 transition-colors ${
-                    selected ? 'bg-brand' : 'bg-muted-foreground/30'
-                  }`}
-                />
-                <span className="text-lg font-medium capitalize">{value}</span>
-              </button>
-            );
-          })}
-        </div>
-      </StepShell>
-    );
-  }
-
-  if (step === 'scan') {
-    return (
-      <StepShell
-        step={STEP_INDEX.scan}
-        total={TOTAL_STEPS}
-        title="Verify it's you"
-        subtitle="We check your face against your student record. Nothing is shared with other riders."
-      >
-        <FaceScan outcome="verified" onComplete={handleScanComplete} />
-      </StepShell>
-    );
-  }
-
+  // The last step, so no condition: `details` returned above.
   return (
     <StepShell
-      step={STEP_INDEX.result}
+      step={STEP_INDEX.gender}
       total={TOTAL_STEPS}
-      title={outcome === 'verified' ? "You're verified" : 'We need a closer look'}
-      subtitle={
-        outcome === 'verified'
-          ? 'You can now request rides. Your first ride must start from campus.'
-          : 'This happens sometimes — poor lighting, an old photo. A person will review it, usually within a day.'
-      }
-    >
-      {outcome === 'verified' ? (
-        <div className="border-brand bg-brand-muted flex items-center gap-4 border-l-2 p-5">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Verified student</p>
-            <p className="text-muted-foreground text-sm">North South University</p>
-          </div>
-        </div>
-      ) : (
-        <div className="border-border flex items-start gap-4 border-l-2 p-5">
-          <ShieldAlert className="text-muted-foreground mt-0.5 size-5 shrink-0" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Sent for review</p>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              You can still browse, but you won&rsquo;t be matched until this clears.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-8">
+      title="Select your gender"
+      subtitle="Renki only ever matches you with riders of the same gender. This cannot be changed after verification."
+      onBack={() => setStep('details')}
+      footer={
         <Button
           size="lg"
-          disabled={pending}
-          onClick={() => {
-            setPending(true);
-            router.push('/rides');
-          }}
+          disabled={gender === null || pending}
+          onClick={() => void submit()}
           className="group h-14 w-full justify-between rounded-none text-base"
         >
-          {pending ? 'Opening…' : outcome === 'verified' ? 'Find a ride' : 'Continue'}
+          {pending ? 'Setting up…' : 'Finish'}
           {pending ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
           )}
         </Button>
+      }
+    >
+      {/* Two large targets rather than a radio list: this is the single most
+            consequential answer in the flow and it is tapped one-handed. */}
+      <div className="grid grid-cols-2 gap-3">
+        {(['female', 'male'] as const).map((value) => {
+          const selected = gender === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setGender(value)}
+              aria-pressed={selected}
+              className={`flex aspect-square flex-col items-center justify-center gap-3 border-2 transition-all ${
+                selected
+                  ? 'border-brand bg-brand-muted'
+                  : 'border-border hover:border-foreground/30'
+              }`}
+            >
+              <span
+                className={`size-3 transition-colors ${
+                  selected ? 'bg-brand' : 'bg-muted-foreground/30'
+                }`}
+              />
+              <span className="text-lg font-medium capitalize">{value}</span>
+            </button>
+          );
+        })}
       </div>
     </StepShell>
   );

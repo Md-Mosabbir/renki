@@ -100,7 +100,14 @@ export async function googleAuthenticate(credential: string): Promise<AuthResult
   return { token, user: toPublicUser(row) };
 }
 
-async function signAccessToken(userId: string, email: string): Promise<string> {
+/**
+ * Mint a Renki session token.
+ *
+ * Exported so `src/scripts/dev-token.ts` signs with the same algorithm, secret
+ * and lifetime the real login does. A second copy of these six lines would look
+ * fine and drift the first time the expiry or the claim set changes.
+ */
+export async function signAccessToken(userId: string, email: string): Promise<string> {
   return new SignJWT({ email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(userId)

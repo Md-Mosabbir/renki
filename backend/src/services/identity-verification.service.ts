@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { query, transaction } from '../db/pool.js';
 import type { MatchResult } from './face-matcher.js';
 import { NoFaceDetectedError, getFaceMatcher } from './face-matcher.js';
@@ -116,7 +117,7 @@ export async function verifyIdentity(
  * 'verified', and doing the check inside the UPDATE means no window exists
  * between reading the stage and writing it.
  */
-async function promoteToVerified(
+export async function promoteToVerified(
   client: { query: (text: string, params: unknown[]) => Promise<unknown> },
   userId: string
 ): Promise<void> {
@@ -125,6 +126,55 @@ async function promoteToVerified(
       WHERE id = $1 AND trust_stage = 'new'`,
     [userId]
   );
+}
+
+/**
+ * Mark an account verified without checking anything. DEVELOPMENT ONLY.
+ *
+ * This is a placeholder for the real flow — capture a selfie, capture the
+ * student ID, run both through `verifyIdentity` above — which is not built
+ * because the capture and upload path is not built. Until it is, the Verify
+ * button has to do something, and a button that does nothing is worse for
+ * testing than one that is honest about being a stub.
+ *
+ * The guard is not decoration. Without it this is a one-request privilege
+ * escalation: any signed-in account could grant itself the trust stage that
+ * gender verification exists to gate. Failing loudly is the difference between
+ * a stub and a back door. It is controlled by `ALLOW_SELF_VERIFY`, which
+ * defaults to off in production — see config/env.ts for why the switch exists
+ * at all rather than the guard being unconditional.
+ *
+ * Replacing it: delete this function, point the route at `verifyIdentity`, and
+ * the trust_stage write is already correct because both go through
+ * `promoteToVerified`.
+ */
+export async function attestVerified(userId: string): Promise<void> {
+  // Gated on an explicit flag rather than on NODE_ENV directly. The default is
+  // unchanged — on in development, off in production — but a deployed demo can
+  // opt in by setting ALLOW_SELF_VERIFY=true, which leaves a record of the
+  // decision in the environment instead of in a deleted `if`.
+  if (!env.allowSelfVerify) {
+    throw new HttpError(
+      501,
+      'Self-attested verification is disabled in this environment'
+    );
+  }
+
+  await transaction(async (client) => {
+    await client.query(
+      `INSERT INTO gender_verifications (user_id, verification_status, verified_at, matcher)
+       VALUES ($1, 'verified', now(), 'self-attested')
+       ON CONFLICT (user_id) DO UPDATE
+          SET verification_status = 'verified',
+              verified_at         = now(),
+              matcher             = 'self-attested',
+              reviewed_by_user_id = NULL,
+              review_note         = NULL`,
+      [userId]
+    );
+
+    await promoteToVerified(client, userId);
+  });
 }
 
 export interface QueueItem {
