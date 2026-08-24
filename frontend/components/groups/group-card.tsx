@@ -1,0 +1,199 @@
+'use client';
+
+import Link from 'next/link';
+import { ArrowRight, Check, Clock, Flag, MapPin, QrCode, X } from 'lucide-react';
+
+import type { Destination, RideGroup } from '@/lib/api';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
+/**
+ * One ride group.
+ *
+ * A 'forming' group is a question, not a plan — it shows who has answered and
+ * who has not, because the person looking at it wants to know who to nudge. A
+ * 'matched' group has every yes it needs and shows the ride instead.
+ */
+
+export interface GroupCardProps {
+  group: RideGroup;
+  /** The signed-in student, so their own invitation gets the buttons. */
+  viewerId: string;
+  origin: Destination | undefined;
+  destination: Destination | undefined;
+  onRespond: (groupId: string, accept: boolean) => void;
+  onComplete: (groupId: string) => void;
+  pending: boolean;
+  highlighted?: boolean;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  forming: 'Waiting on replies',
+  matched: 'Everyone is in',
+  active: 'On the way',
+  completed: 'Done',
+  cancelled: 'Cancelled',
+};
+
+export function GroupCard({
+  group,
+  viewerId,
+  origin,
+  destination,
+  onRespond,
+  onComplete,
+  pending,
+  highlighted = false,
+}: GroupCardProps) {
+  const mine = group.members.find((member) => member.id === viewerId);
+  const awaitingMe = group.status === 'forming' && mine?.inviteStatus === 'pending';
+
+  return (
+    <article
+      className={`border-l-2 py-5 pl-5 transition-colors ${
+        highlighted ? 'border-brand' : 'border-border'
+      }`}
+    >
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          {/* Direction, not just a destination. "Gulshan -> NSU" and
+              "NSU -> Gulshan" are different rides, and only one of them is a
+              shape a stranger match could ever have taken. */}
+          <h2 className="flex items-center gap-1.5 text-base font-medium">
+            <MapPin className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            <span className="truncate">{origin?.label ?? 'Unknown'}</span>
+            <ArrowRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{destination?.label ?? 'Unknown'}</span>
+          </h2>
+          <p className="text-muted-foreground mt-1 flex items-center gap-2 text-sm">
+            <Clock className="size-3.5 shrink-0" aria-hidden />
+            {formatDeparture(group.departureTime)}
+          </p>
+        </div>
+
+        <Badge variant={group.status === 'matched' ? 'default' : 'secondary'}>
+          {STATUS_LABEL[group.status] ?? group.status}
+        </Badge>
+      </header>
+
+      <ul className="mt-4 flex flex-wrap gap-3">
+        {group.members.map((member) => (
+          <li key={member.id} className="flex items-center gap-2">
+            <span className="relative">
+              <Avatar
+                className={`size-8 ${member.inviteStatus === 'pending' ? 'opacity-40' : ''}`}
+              >
+                <AvatarImage src={member.profilePictureUrl ?? undefined} alt="" />
+                <AvatarFallback className="text-[10px]">
+                  {initials(member.name)}
+                </AvatarFallback>
+              </Avatar>
+              {member.inviteStatus === 'declined' && (
+                <span className="bg-background absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full">
+                  <X className="size-3" aria-hidden />
+                </span>
+              )}
+            </span>
+            <span className="text-xs">
+              {member.name.split(/\s+/)[0]}
+              {member.isCreator && (
+                <span className="text-muted-foreground"> · organiser</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {group.status === 'forming' && group.pendingCount > 0 && !awaitingMe && (
+        <p className="text-muted-foreground mt-4 text-xs">
+          Waiting on {group.pendingCount} {group.pendingCount === 1 ? 'person' : 'people'}
+          . One decline cancels the ride.
+        </p>
+      )}
+
+      {/* matched -> active -> completed. The scan is what starts a ride; a
+          button saying "we met" would mean nothing, which is the whole reason
+          the code exists. */}
+      {group.status === 'matched' && mine?.inviteStatus === 'accepted' && (
+        <div className="mt-5">
+          <Button asChild size="sm" className="rounded-none">
+            <Link href={`/groups/${group.id}/start`}>
+              <QrCode className="size-3.5" />
+              Start ride
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {group.status === 'active' && mine?.inviteStatus === 'accepted' && (
+        <div className="mt-5 flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => onComplete(group.id)}
+            className="rounded-none"
+          >
+            <Flag className="size-3.5" />
+            Finish ride
+          </Button>
+          <span className="text-muted-foreground text-xs">
+            Started {group.startedAt === null ? '' : formatTime(group.startedAt)}
+          </span>
+        </div>
+      )}
+
+      {awaitingMe && (
+        <div className="mt-5 flex gap-2">
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() => onRespond(group.id, true)}
+            className="rounded-none"
+          >
+            <Check className="size-3.5" />
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => onRespond(group.id, false)}
+            className="rounded-none"
+          >
+            <X className="size-3.5" />
+            Decline
+          </Button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatDeparture(iso: string): string {
+  const when = new Date(iso);
+  return when.toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
