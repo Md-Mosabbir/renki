@@ -34,6 +34,10 @@ ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 # otherwise wait on a network call that can never succeed.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Activates `output: 'standalone'` in next.config.ts (which is gated behind
+# this variable so that Vercel builds — which don't set it — are unaffected).
+ENV BUILD_TARGET=docker
+
 RUN npm run build -w @renki/frontend
 
 # ---------- Stage 2: the image that actually ships ----------
