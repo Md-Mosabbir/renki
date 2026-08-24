@@ -38,6 +38,26 @@ export const env = {
   // means "no Python face service configured", which selects the mock matcher
   // — that is what lets `npm run dev` and CI run the whole verification flow
   // with nothing else deployed. Set it and the real matcher takes over.
+  /**
+   * Lets `POST /api/verification/self` grant `verified` outright.
+   *
+   * Defaults to ON in development and OFF everywhere else, so nothing changes
+   * locally and a deploy is closed by default. Setting it to 'true' in a
+   * deployed environment is a DELIBERATE, visible decision: it turns a stub
+   * into a one-request privilege escalation, where any signed-in account grants
+   * itself the trust stage that gender verification exists to gate.
+   *
+   * It exists because the alternative is worse — with real verification
+   * unbuilt, a deployed instance has NO path to `verified`, and
+   * RIDEABLE_TRUST_STAGES then blocks every stranger ride. A demo where the
+   * main feature 404s teaches nobody anything. An env var that says out loud
+   * what has been switched off is better than quietly deleting the guard.
+   *
+   * Turn it off the day real verification ships.
+   */
+  allowSelfVerify:
+    (process.env.ALLOW_SELF_VERIFY ?? String(nodeEnv !== 'production')) === 'true',
+
   faceApiUrl: process.env.FACE_API_URL ?? '',
   faceApiSecret: process.env.FACE_API_SECRET ?? '',
 } as const;

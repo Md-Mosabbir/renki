@@ -1,5 +1,4 @@
 import { httpApi } from './http';
-import { mockApi } from './mock';
 
 export * from './types';
 
@@ -7,9 +6,9 @@ export * from './types';
  * The single place a screen gets data from.
  *
  * The backend is partly built, so this is deliberately a mixture rather than an
- * all-or-nothing switch. Each entry below is marked REAL or MOCK, and that
+ * all-or-nothing switch. Each entry below is marked REAL, and that
  * comment is the honest state of the system — when an endpoint lands, its line
- * moves from `mockApi` to `httpApi` and no component changes, because
+ * lands it is added here and no component changes, because
  * `types.ts` already describes the shape the server sends.
  *
  * Keeping the seam in one file is what stops "is this real yet?" from being a
@@ -23,20 +22,64 @@ export const api = {
   me: httpApi.me,
   /** POST /api/auth/gather-info */
   completeProfile: httpApi.completeProfile,
-
-  // ---- MOCK — no endpoint exists yet ----
   /**
-   * Identity verification. The service layer exists
-   * (backend/src/services/identity-verification.service.ts) but no route is
-   * mounted, and the capture/upload path is unbuilt. Mocked per the spec.
+   * POST /api/verification/self — REAL endpoint, PLACEHOLDER behaviour. It
+   * verifies with no evidence so the Verify button has something behind it, and
+   * the server refuses to serve it in production.
    */
-  verifyIdentity: mockApi.verifyIdentity,
-  /** No locations endpoint yet, though the `locations` table is populated. */
-  destinations: mockApi.destinations,
-  /** Matching is unbuilt — no proposals endpoint. */
-  candidates: mockApi.candidates,
-  /** Queue state is unbuilt. */
-  queue: mockApi.queue,
+  selfVerify: httpApi.selfVerify,
+
+  // ---- REAL — served by backend/src/routes/friends.routes.ts ----
+  /** GET /api/friends */
+  friends: httpApi.friends,
+  /** GET /api/friends/:id */
+  friendship: httpApi.friendship,
+  /** GET /api/friends/discover — gender filtering happens in SQL, not here. */
+  discover: httpApi.discover,
+  /** GET /api/friends/graph — my friends plus who among them knows whom. */
+  friendGraph: httpApi.friendGraph,
+  /** POST /api/friends/requests */
+  requestFriend: httpApi.requestFriend,
+  /** POST /api/friends/:id/respond */
+  respondToFriend: httpApi.respondToFriend,
+  /** DELETE /api/friends/:id */
+  removeFriend: httpApi.removeFriend,
+  /** POST /api/friends/:id/meetup */
+  issueMeetupCode: httpApi.issueMeetupCode,
+  /** POST /api/friends/meetups/scan — the request that makes a friendship real. */
+  scanMeetupCode: httpApi.scanMeetupCode,
+
+  // ---- REAL — served by backend/src/routes/destinations.routes.ts ----
+  /** GET /api/destinations — read from the `locations` table. */
+  destinations: httpApi.destinations,
+
+  // ---- REAL — served by backend/src/routes/groups.routes.ts ----
+  /** GET /api/groups */
+  groups: httpApi.groups,
+  /** POST /api/groups */
+  createGroup: httpApi.createGroup,
+  /** POST /api/groups/:id/respond */
+  respondToGroup: httpApi.respondToGroup,
+  /** POST /api/groups/:id/start-code — the code one rider shows the other. */
+  issueStartCode: httpApi.issueStartCode,
+  /** POST /api/groups/start/scan — the moment a ride starts. */
+  scanStartCode: httpApi.scanStartCode,
+  /** POST /api/groups/:id/complete */
+  completeRide: httpApi.completeRide,
+
+  // ---- REAL — served by backend/src/routes/rides.routes.ts ----
+  /** GET /api/rides/request — the one open search, or null. */
+  rideRequest: httpApi.rideRequest,
+  /** POST /api/rides/request */
+  createRideRequest: httpApi.createRideRequest,
+  /** DELETE /api/rides/request/:id */
+  cancelRideRequest: httpApi.cancelRideRequest,
+  /** GET /api/rides/incoming — people who already swiped yes on you. */
+  incoming: httpApi.incoming,
+  /** GET /api/rides/request/:id/deck — dealt by the H3 proximity strategy. */
+  deck: httpApi.deck,
+  /** POST /api/rides/request/:id/swipe — a ride exists only on the second yes. */
+  swipe: httpApi.swipe,
 };
 
 const TOKEN_KEY = 'renki.token';

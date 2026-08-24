@@ -6,7 +6,9 @@ import { Loader2, ShieldCheck, Users, MapPin } from 'lucide-react';
 
 import { api, ApiError, session } from '@/lib/api';
 import { GoogleSignIn } from '@/components/auth/google-sign-in';
+import { DevSignIn } from '@/components/auth/dev-sign-in';
 import { Wordmark } from '@/components/brand/wordmark';
+import { postSignInPath } from '@/lib/redirect';
 
 /**
  * Sign in. REAL — POST /api/auth/google.
@@ -34,7 +36,9 @@ export default function SignInPage() {
         session.set(token);
         // profileCompleted decides the route, not "is this a new account" — a
         // student can abandon the form halfway and sign in again days later.
-        router.push(user.profileCompleted ? '/rides' : '/onboarding');
+        // ?next= carries them back to a scanned meetup code if that is what
+        // sent them here.
+        router.push(postSignInPath(user.profileCompleted));
       } catch (err) {
         setError(
           err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
@@ -120,6 +124,11 @@ export default function SignInPage() {
             <p className="text-muted-foreground text-xs">
               Use your @northsouth.edu account.
             </p>
+
+            {/* Compiled away in production: Next replaces process.env.NODE_ENV
+                with a literal, so this branch and the whole DevSignIn import are
+                dropped from the bundle. */}
+            {process.env.NODE_ENV !== 'production' && <DevSignIn />}
           </div>
         </div>
 

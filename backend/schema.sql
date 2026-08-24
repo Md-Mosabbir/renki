@@ -43,6 +43,24 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: friend_meetups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.friend_meetups (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    friendship_id uuid NOT NULL,
+    issued_by_user_id uuid NOT NULL,
+    code character varying(64) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    consumed_by_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_meetup_consumed_pair CHECK (((consumed_at IS NULL) = (consumed_by_user_id IS NULL))),
+    CONSTRAINT chk_meetup_not_self CHECK (((consumed_by_user_id IS NULL) OR (consumed_by_user_id <> issued_by_user_id)))
+);
+
+
+--
 -- Name: friendships; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -52,9 +70,20 @@ CREATE TABLE public.friendships (
     addressee_id uuid NOT NULL,
     status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    responded_at timestamp with time zone,
+    confirmed_at timestamp with time zone,
     CONSTRAINT chk_friend_not_self CHECK ((requester_id <> addressee_id)),
-    CONSTRAINT friendships_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'blocked'::character varying])::text[])))
+    CONSTRAINT chk_friendship_confirmed_at CHECK ((((status)::text = 'accepted'::text) = (confirmed_at IS NOT NULL))),
+    CONSTRAINT chk_friendship_responded_at CHECK ((((status)::text = 'pending'::text) = (responded_at IS NULL))),
+    CONSTRAINT chk_friendships_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'awaiting_meetup'::character varying, 'accepted'::character varying, 'declined'::character varying, 'blocked'::character varying])::text[])))
 );
+
+
+--
+-- Name: COLUMN friendships.confirmed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.friendships.confirmed_at IS 'When the two met in person and one scanned the other''s meetup code. NOT NULL exactly when status = ''accepted'' — this is what separates a confirmed friendship from an accepted request.';
 
 
 --
@@ -96,6 +125,7 @@ CREATE TABLE public.locations (
     longitude double precision NOT NULL,
     address character varying(255),
     kind character varying(20) DEFAULT 'other'::character varying NOT NULL,
+    h3_cell character varying(16) NOT NULL,
     CONSTRAINT chk_locations_kind CHECK (((kind)::text = ANY ((ARRAY['campus'::character varying, 'other'::character varying])::text[]))),
     CONSTRAINT locations_latitude_check CHECK (((latitude >= ('-90'::integer)::double precision) AND (latitude <= (90)::double precision))),
     CONSTRAINT locations_longitude_check CHECK (((longitude >= ('-180'::integer)::double precision) AND (longitude <= (180)::double precision)))
@@ -111,7 +141,12 @@ CREATE TABLE public.qr_verifications (
     ride_group_id uuid NOT NULL,
     code character varying(64) NOT NULL,
     expires_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    issued_by_user_id uuid,
+    consumed_at timestamp with time zone,
+    consumed_by_user_id uuid,
+    CONSTRAINT chk_qr_consumed_pair CHECK (((consumed_at IS NULL) = (consumed_by_user_id IS NULL))),
+    CONSTRAINT chk_qr_not_self CHECK (((consumed_by_user_id IS NULL) OR (consumed_by_user_id <> issued_by_user_id)))
 );
 
 
@@ -179,12 +214,21 @@ CREATE TABLE public.ride_groups (
     formation character varying(20) DEFAULT 'matched'::character varying NOT NULL,
     created_by_user_id uuid,
     capacity smallint DEFAULT 2 NOT NULL,
+    origin_location_id uuid NOT NULL,
+    origin_kind character varying(20) NOT NULL,
+    started_at timestamp with time zone,
+    completed_at timestamp with time zone,
     CONSTRAINT chk_matched_capacity_is_two CHECK ((((formation)::text <> 'matched'::text) OR (capacity = 2))),
+    CONSTRAINT chk_ride_group_completed_at CHECK ((((status)::text = 'completed'::text) = (completed_at IS NOT NULL))),
+    CONSTRAINT chk_ride_group_finish_after_start CHECK (((completed_at IS NULL) OR (started_at IS NULL) OR (completed_at >= started_at))),
+    CONSTRAINT chk_ride_group_started_at CHECK ((((status)::text <> ALL ((ARRAY['active'::character varying, 'completed'::character varying])::text[])) OR (started_at IS NOT NULL))),
     CONSTRAINT chk_ride_groups_capacity CHECK (((capacity >= 2) AND (capacity <= 6))),
     CONSTRAINT chk_ride_groups_formation CHECK (((formation)::text = ANY ((ARRAY['matched'::character varying, 'friends'::character varying])::text[]))),
     CONSTRAINT chk_ride_groups_friends_have_creator CHECK ((((formation)::text <> 'friends'::text) OR (created_by_user_id IS NOT NULL))),
     CONSTRAINT chk_ride_groups_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying])::text[]))),
-    CONSTRAINT ride_groups_status_check CHECK (((status)::text = ANY ((ARRAY['matched'::character varying, 'active'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[])))
+    CONSTRAINT chk_ride_groups_origin_dest_diff CHECK ((origin_location_id <> destination_location_id)),
+    CONSTRAINT chk_ride_groups_status CHECK (((status)::text = ANY ((ARRAY['forming'::character varying, 'matched'::character varying, 'active'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))),
+    CONSTRAINT chk_stranger_rides_start_at_campus CHECK ((((formation)::text <> 'matched'::text) OR ((origin_kind)::text = 'campus'::text)))
 );
 
 
@@ -319,6 +363,22 @@ COMMENT ON COLUMN public.users.id_card_captured_at IS 'When the retained ID card
 
 
 --
+-- Name: friend_meetups friend_meetups_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.friend_meetups
+    ADD CONSTRAINT friend_meetups_code_key UNIQUE (code);
+
+
+--
+-- Name: friend_meetups friend_meetups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.friend_meetups
+    ADD CONSTRAINT friend_meetups_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: friendships friendships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -364,14 +424,6 @@ ALTER TABLE ONLY public.qr_verifications
 
 ALTER TABLE ONLY public.qr_verifications
     ADD CONSTRAINT qr_verifications_pkey PRIMARY KEY (id);
-
-
---
--- Name: qr_verifications qr_verifications_ride_group_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.qr_verifications
-    ADD CONSTRAINT qr_verifications_ride_group_id_key UNIQUE (ride_group_id);
 
 
 --
@@ -455,14 +507,6 @@ ALTER TABLE ONLY public.uber_integrations
 
 
 --
--- Name: friendships uq_friend_pair; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.friendships
-    ADD CONSTRAINT uq_friend_pair UNIQUE (requester_id, addressee_id);
-
-
---
 -- Name: ride_group_invites uq_group_invite; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -476,6 +520,14 @@ ALTER TABLE ONLY public.ride_group_invites
 
 ALTER TABLE ONLY public.ride_histories
     ADD CONSTRAINT uq_history_pair UNIQUE (user_id_a, user_id_b);
+
+
+--
+-- Name: locations uq_locations_id_kind; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.locations
+    ADD CONSTRAINT uq_locations_id_kind UNIQUE (id, kind);
 
 
 --
@@ -543,10 +595,24 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: friend_meetups_issuer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX friend_meetups_issuer_idx ON public.friend_meetups USING btree (issued_by_user_id);
+
+
+--
 -- Name: friendships_addressee_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX friendships_addressee_idx ON public.friendships USING btree (addressee_id);
+
+
+--
+-- Name: friendships_requester_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX friendships_requester_idx ON public.friendships USING btree (requester_id);
 
 
 --
@@ -561,6 +627,20 @@ CREATE INDEX gender_verifications_queue_idx ON public.gender_verifications USING
 --
 
 CREATE INDEX gender_verifications_reviewed_by_idx ON public.gender_verifications USING btree (reviewed_by_user_id);
+
+
+--
+-- Name: locations_h3_cell_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX locations_h3_cell_idx ON public.locations USING btree (h3_cell);
+
+
+--
+-- Name: qr_verifications_group_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX qr_verifications_group_idx ON public.qr_verifications USING btree (ride_group_id);
 
 
 --
@@ -599,6 +679,13 @@ CREATE INDEX ride_group_invites_user_idx ON public.ride_group_invites USING btre
 
 
 --
+-- Name: ride_groups_completed_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ride_groups_completed_idx ON public.ride_groups USING btree (completed_at DESC) WHERE (completed_at IS NOT NULL);
+
+
+--
 -- Name: ride_groups_created_by_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -610,6 +697,13 @@ CREATE INDEX ride_groups_created_by_idx ON public.ride_groups USING btree (creat
 --
 
 CREATE INDEX ride_groups_destination_idx ON public.ride_groups USING btree (destination_location_id);
+
+
+--
+-- Name: ride_groups_origin_location_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ride_groups_origin_location_idx ON public.ride_groups USING btree (origin_location_id);
 
 
 --
@@ -669,6 +763,51 @@ CREATE INDEX ride_requests_user_idx ON public.ride_requests USING btree (user_id
 
 
 --
+-- Name: uq_friend_pair_canonical; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_friend_pair_canonical ON public.friendships USING btree (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
+
+
+--
+-- Name: uq_meetup_live_per_friendship; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_meetup_live_per_friendship ON public.friend_meetups USING btree (friendship_id) WHERE (consumed_at IS NULL);
+
+
+--
+-- Name: uq_qr_live_per_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_qr_live_per_group ON public.qr_verifications USING btree (ride_group_id) WHERE (consumed_at IS NULL);
+
+
+--
+-- Name: friend_meetups friend_meetups_consumed_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.friend_meetups
+    ADD CONSTRAINT friend_meetups_consumed_by_user_id_fkey FOREIGN KEY (consumed_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: friend_meetups friend_meetups_friendship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.friend_meetups
+    ADD CONSTRAINT friend_meetups_friendship_id_fkey FOREIGN KEY (friendship_id) REFERENCES public.friendships(id) ON DELETE CASCADE;
+
+
+--
+-- Name: friend_meetups friend_meetups_issued_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.friend_meetups
+    ADD CONSTRAINT friend_meetups_issued_by_user_id_fkey FOREIGN KEY (issued_by_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: friendships friendships_addressee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -698,6 +837,22 @@ ALTER TABLE ONLY public.gender_verifications
 
 ALTER TABLE ONLY public.gender_verifications
     ADD CONSTRAINT gender_verifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: qr_verifications qr_verifications_consumed_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.qr_verifications
+    ADD CONSTRAINT qr_verifications_consumed_by_user_id_fkey FOREIGN KEY (consumed_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: qr_verifications qr_verifications_issued_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.qr_verifications
+    ADD CONSTRAINT qr_verifications_issued_by_user_id_fkey FOREIGN KEY (issued_by_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -778,6 +933,14 @@ ALTER TABLE ONLY public.ride_groups
 
 ALTER TABLE ONLY public.ride_groups
     ADD CONSTRAINT ride_groups_destination_location_id_fkey FOREIGN KEY (destination_location_id) REFERENCES public.locations(id);
+
+
+--
+-- Name: ride_groups ride_groups_origin_location_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ride_groups
+    ADD CONSTRAINT ride_groups_origin_location_fk FOREIGN KEY (origin_location_id, origin_kind) REFERENCES public.locations(id, kind) ON UPDATE CASCADE;
 
 
 --
