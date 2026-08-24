@@ -1,0 +1,11 @@
+{
+  "//": "Copy to .mcp.json (git-ignored) and run /mcp in Claude Code to sign in.",
+  "//features": "Trim the features list to what you need. Dropping 'database,account,functions,branching' leaves read-only docs; appending &read_only=true also forces reads.",
+  "//secrets": "NEVER put an access token in this file, including in a stdio server's env block. .mcp.json is ignored precisely so a pasted token cannot be committed, but the example is not — keep it clean.",
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF&features=docs%2Cdatabase%2Cdebugging"
+    }
+  }
+}

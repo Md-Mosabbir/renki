@@ -1,10 +1,13 @@
 {
   "extends": "./tsconfig.json",
   // Narrower than the base include: only src/ is compiled, so vitest.config.ts
-  // and *.test.ts never reach dist/ or the production image.
+  // and *.test.ts never reach dist/ or the production image. src/scripts/ is
+  // excluded for the same reason — those are developer commands run with tsx,
+  // and shipping a token minter inside the production image is not a risk worth
+  // taking for a convenience nobody needs there.
   "compilerOptions": {
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "src/scripts/**", "**/*.test.ts", "**/*.spec.ts"]
 }

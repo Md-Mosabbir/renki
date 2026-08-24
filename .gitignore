@@ -12,3 +12,22 @@ coverage/
 *.log
 npm-debug.log*
 .DS_Store
+
+# Claude Code.
+#
+# `.mcp.json` holds no credential TODAY — the Supabase server is an HTTP one and
+# authenticates over OAuth, so the token lives in Claude Code's own storage, and
+# `project_ref` is already public in the API URL that ships to every browser.
+#
+# It is ignored because of what the format allows next. A stdio MCP server is
+# configured with an inline `env` block, so the natural way to add one is to
+# paste an access token straight into this file — and `git add .` would then
+# commit it silently and permanently. The upside of sharing it is one file a
+# teammate can copy from .mcp.json.example; the downside is a write-scoped
+# database token in the history forever. Not a close call.
+#
+# settings.local.json is per-developer by definition (it records which MCP
+# servers YOU enabled). It happens to be covered by some global gitignores,
+# which protects whoever set that up and nobody else on the team.
+.mcp.json
+.claude/settings.local.json
