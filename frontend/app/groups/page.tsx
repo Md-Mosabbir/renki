@@ -115,7 +115,7 @@ export default function GroupsPage() {
           // The ride leaves this screen entirely — GET /api/groups returns only
           // forming/matched/active — and reappears under History. Say so, or it
           // reads as the card having been deleted.
-          toast.success('Ride cancelled — you can find it in History');
+          toast.success('Ride cancelled. You can find it in History.');
           refresh();
         })
         .catch((err: unknown) => {

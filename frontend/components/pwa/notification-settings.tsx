@@ -66,7 +66,7 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
             result.reason === 'denied'
               ? 'Notifications are blocked. You can re-enable them in your browser settings.'
               : result.reason === 'needs-install'
-                ? 'Add Renki to your Home Screen first — iPhones only deliver notifications to an installed app.'
+                ? 'Add Renki to your Home Screen first. iPhones only deliver notifications to an installed app.'
                 : 'Could not turn on notifications'
           );
           return;
@@ -118,7 +118,7 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
         // account, which is a different problem from a failed send and by far
         // the more common one.
         if (delivered === 0) {
-          toast.error('No devices registered — turn notifications on first');
+          toast.error('No devices registered. Turn notifications on first.');
         } else {
           toast.success(
             `Sent to ${String(delivered)} device${delivered === 1 ? '' : 's'}`

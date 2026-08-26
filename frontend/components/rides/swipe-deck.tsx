@@ -146,7 +146,7 @@ export function SwipeDeck({ cards, onAnswer, busy }: SwipeDeckProps) {
             </dl>
 
             <p className="text-muted-foreground mt-auto text-xs leading-relaxed">
-              You both leave from campus. Saying yes does not book anything — the ride
+              You both leave from campus. Saying yes does not book anything. The ride
               happens only if they say yes too.
             </p>
           </div>

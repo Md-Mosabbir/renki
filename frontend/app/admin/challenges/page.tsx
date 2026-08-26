@@ -121,7 +121,7 @@ export default function AdminChallengesPage() {
             <p className="text-muted-foreground text-sm leading-relaxed">
               The only question is whether someone declared a gender they knew was false
               in order to be matched with people who had chosen not to ride with them. If
-              you are unsure, clear it — a wrong suspension costs a student the app, and
+              you are unsure, clear it. A wrong suspension costs a student the app, and
               the reporter can block them either way.
             </p>
             <p className="text-muted-foreground text-xs leading-relaxed">
@@ -244,7 +244,7 @@ function CaseCard({
               }}
               className="cursor-pointer rounded-none"
             >
-              Yes — suspend {item.name.split(' ')[0]}
+              Yes, suspend {item.name.split(' ')[0]}
             </Button>
             <Button
               variant="ghost"

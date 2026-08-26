@@ -160,7 +160,7 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
             <p className="text-muted-foreground mx-auto mt-8 max-w-sm text-center text-xs leading-relaxed">
               The code changes every few seconds, so a screenshot goes stale fast. On an
               iPhone, the other person can point the built-in Camera app at this and tap
-              the link — no in-app scanner needed.
+              the link. No in-app scanner needed.
             </p>
           </>
         ) : (

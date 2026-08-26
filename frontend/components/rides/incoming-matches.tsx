@@ -124,7 +124,7 @@ export function IncomingMatches({ onMatched }: { onMatched?: () => void }) {
             </div>
 
             <p className="text-muted-foreground mt-3 text-xs">
-              They have already said yes — accepting books the ride now.
+              They have already said yes, so accepting books the ride now.
             </p>
           </li>
         ))}

@@ -137,8 +137,8 @@ export default function BlobLabPage() {
                 {showPlate ? 'Hide QR plate' : 'Show QR plate'}
               </Button>
               <p className="mt-3 text-xs opacity-60">
-                This is how the meetup screen actually composes it — the blob is the
-                shell, the plate is what a camera reads.
+                This is how the meetup screen actually composes it. The blob is the shell,
+                the plate is what a camera reads.
               </p>
             </Control>
 
@@ -177,7 +177,7 @@ export default function BlobLabPage() {
                 <Row term="reduced-motion" value={String(support.reduceMotion)} />
                 <Row
                   term="dpr"
-                  value={support.dpr === null ? '—' : support.dpr.toFixed(2)}
+                  value={support.dpr === null ? '-' : support.dpr.toFixed(2)}
                 />
               </dl>
               <p className="mt-3 text-xs opacity-60">

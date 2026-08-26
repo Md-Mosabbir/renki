@@ -142,7 +142,7 @@ export default function AdminReportsPage() {
               Reports
             </h1>
             <p className="text-muted-foreground text-sm">
-              Oldest first — that is the order a queue is worked in.
+              Oldest first. That is the order a queue is worked in.
             </p>
           </div>
 
@@ -251,7 +251,7 @@ function ReportRow({
           <p className="text-muted-foreground text-xs leading-relaxed">
             {report.reportedUserName} will be blocked from booking rides until they send
             one photo, which only you will see and which is deleted the moment you decide.
-            Do not do this on a report you would otherwise dismiss — being asked is itself
+            Do not do this on a report you would otherwise dismiss. Being asked is itself
             a cost.
           </p>
           <p className="text-muted-foreground text-xs leading-relaxed">

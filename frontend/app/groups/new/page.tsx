@@ -116,8 +116,8 @@ export default function NewGroupPage() {
 
         <h1 className="text-2xl font-medium tracking-tight">New group ride</h1>
         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-          Everyone in a group has to have met everyone else — not just you. People who
-          have not met someone you already picked are locked below.
+          Everyone in a group has to have met everyone else, not just you. People who have
+          not met someone you already picked are locked below.
         </p>
 
         {loadError !== null && (
@@ -166,7 +166,7 @@ export default function NewGroupPage() {
               />
               {sameEnds && (
                 <p className="text-muted-foreground text-xs sm:col-span-2">
-                  Pick two different places — a ride has to go somewhere else.
+                  Pick two different places. A ride has to go somewhere else.
                 </p>
               )}
             </section>
@@ -239,7 +239,7 @@ function PlaceSelect({
         {options.map((place) => (
           <option key={place.id} value={place.id}>
             {place.label}
-            {place.area !== '' ? ` — ${place.area}` : ''}
+            {place.area !== '' ? ` - ${place.area}` : ''}
           </option>
         ))}
       </select>

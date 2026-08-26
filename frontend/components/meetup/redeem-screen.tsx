@@ -90,7 +90,7 @@ export function RedeemScreen({ code }: { code: string }) {
           <>
             <Body
               title="You're friends"
-              text={`You and ${friendship?.friend.name ?? 'they'} confirmed in person. You can ride together directly now — no matching, no queue.`}
+              text={`You and ${friendship?.friend.name ?? 'they'} confirmed in person. You can ride together directly now, with no matching, no queue.`}
             />
             <Button asChild className="mt-8">
               <Link href="/friends">Back to friends</Link>

@@ -11,7 +11,7 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Renki — university ride sharing',
+    name: 'Renki',
     short_name: 'Renki',
     description: 'Share rides from campus with people you have actually met.',
     start_url: '/rides',

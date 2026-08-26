@@ -108,7 +108,7 @@ export function RideHandoff({
                       <span className="text-muted-foreground block text-xs">
                         {provider.prefills
                           ? 'Pickup and drop-off filled in'
-                          : 'Opens the app — you type the address'}
+                          : 'Opens the app, you type the address'}
                       </span>
                     </span>
                     <ArrowUpRight className="text-muted-foreground size-4 shrink-0" />
@@ -120,7 +120,7 @@ export function RideHandoff({
             {/* Renki has no payment splitting anywhere. Better said here than
                 discovered in the car. */}
             <p className="text-muted-foreground mt-4 text-xs leading-relaxed">
-              Whoever books pays the driver — Renki does not split the fare.
+              Whoever books pays the driver. Renki does not split the fare.
             </p>
           </div>
         </SheetContent>

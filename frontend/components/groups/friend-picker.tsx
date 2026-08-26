@@ -83,7 +83,7 @@ export function FriendPicker({
     return (
       <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
         You have no confirmed friends yet. A group is built from people you have already
-        met in person — add a friend first.
+        met in person. Add a friend first.
       </p>
     );
   }

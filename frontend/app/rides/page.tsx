@@ -98,7 +98,7 @@ export default function RidesPage() {
               enabled={rideable}
               icon={Users}
               title="Ride with friends"
-              body="Up to six people. Everyone in the group has to have met everyone else in person — not just you."
+              body="Up to six people. Everyone in the group has to have met everyone else in person, not just you."
             />
 
             {!rideable && (

@@ -317,7 +317,7 @@ export default function StrangerSearchPage() {
                       .map((place) => (
                         <option key={place.id} value={place.id}>
                           {place.label}
-                          {place.area !== '' ? ` — ${place.area}` : ''}
+                          {place.area !== '' ? ` - ${place.area}` : ''}
                         </option>
                       ))}
                   </select>

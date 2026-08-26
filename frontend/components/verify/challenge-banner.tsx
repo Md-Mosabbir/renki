@@ -76,7 +76,7 @@ export function ChallengeBanner({ onResolved }: { onResolved?: () => void }) {
             <p className="text-sm font-medium">Account suspended</p>
             <p className="text-muted-foreground text-sm leading-relaxed">
               A moderator reviewed your photo and suspended this account. If you think
-              that is wrong, contact the Renki team — replying here is not possible.
+              that is wrong, contact the Renki team. Replying here is not possible.
             </p>
             {challenge.reviewNote && (
               <p className="text-muted-foreground border-border mt-3 border-l-2 py-1 pl-3 text-sm">
@@ -98,7 +98,7 @@ export function ChallengeBanner({ onResolved }: { onResolved?: () => void }) {
             strokeWidth={2}
           />
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm font-medium">Photo sent — a moderator is looking</p>
+            <p className="text-sm font-medium">Photo sent, a moderator is looking</p>
             <p className="text-muted-foreground text-sm leading-relaxed">
               You cannot book rides until this is decided. Your photo is deleted the
               moment it is, whichever way it goes.

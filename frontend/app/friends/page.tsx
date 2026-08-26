@@ -82,7 +82,7 @@ export default function FriendsPage() {
           // The tap is not the end of it, and saying so here is the only place
           // a student learns the rule before they go looking for the friend in
           // a list they are not in yet.
-          toast.success('Accepted — now meet up and scan to confirm');
+          toast.success('Accepted. Now meet up and scan to confirm.');
         }
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'That did not work');
@@ -127,7 +127,7 @@ export default function FriendsPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Friends</h1>
           <p className="text-muted-foreground mt-2 max-w-lg text-sm">
             Ride with people you know. A friendship counts once you have met in person and
-            scanned each other — after that you can ride together without matching.
+            scanned each other. After that you can ride together without matching.
           </p>
         </header>
 

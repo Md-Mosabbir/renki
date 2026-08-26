@@ -166,7 +166,7 @@ export function GoogleSignIn({
         </strong>{' '}
         This page is on{' '}
         {typeof window === 'undefined' ? 'a LAN address' : window.location.host}, which
-        Google will not accept — bare IP addresses cannot be registered as an authorised
+        Google will not accept. Bare IP addresses cannot be registered as an authorised
         origin. Use the test accounts below, or open the app at localhost on the machine
         running it.
       </Notice>

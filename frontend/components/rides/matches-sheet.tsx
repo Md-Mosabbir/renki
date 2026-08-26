@@ -43,7 +43,7 @@ export function MatchesSheet({
         <SheetHeader>
           <SheetTitle>{cards.length} going your way</SheetTitle>
           <SheetDescription>
-            Leaving within {windowMinutes} minutes of you. Swipe to answer each one — a
+            Leaving within {windowMinutes} minutes of you. Swipe to answer each one. A
             ride is booked only when you both say yes.
           </SheetDescription>
         </SheetHeader>

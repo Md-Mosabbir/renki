@@ -266,7 +266,7 @@ function ConfirmedPanel({ name }: { name: string }) {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">You&rsquo;re friends</h1>
         <p className="text-muted-foreground text-sm">
-          You and {name} confirmed in person. You can ride together directly now — no
+          You and {name} confirmed in person. You can ride together directly now, with no
           matching, no queue.
         </p>
       </div>
@@ -310,7 +310,7 @@ function ShowPanel({
         </h1>
         <p className="text-muted-foreground mx-auto max-w-sm text-sm">
           {live
-            ? `Hold your phone up so ${name} can scan it — with Renki, or with their phone's own camera app. The code changes every few seconds, so it only works while you are standing together.`
+            ? `Hold your phone up so ${name} can scan it, with Renki or with their phone's own camera app. The code changes every few seconds, so it only works while you are standing together.`
             : `Renki only counts a friendship once you have actually met. Show ${name} a code, or scan theirs.`}
         </p>
       </div>
@@ -386,7 +386,7 @@ function ScanPanel({
             offers to open the link. Saying so is the difference between the
             feature working and an iPhone user being stuck. */}
         <p className="text-muted-foreground mx-auto max-w-sm text-xs leading-relaxed">
-          On iPhone, open your Camera app and point it at their code instead — it will
+          On iPhone, open your Camera app and point it at their code instead. It will
           offer to open Renki.
         </p>
       </div>

@@ -142,7 +142,7 @@ export default function OnboardingPage() {
       step={STEP_INDEX.gender}
       total={TOTAL_STEPS}
       title="Select your gender"
-      subtitle="Checked against your student ID, so it cannot be changed later. By default you are matched only with riders of the same gender — you can change that in your profile any time."
+      subtitle="Checked against your student ID, so it cannot be changed later. By default you are matched only with riders of the same gender. You can change that in your profile any time."
       onBack={() => setStep('details')}
       footer={
         <Button

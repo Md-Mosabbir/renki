@@ -251,7 +251,7 @@ export function PhotoCapture({
 
       {cameraState === 'unavailable' && (
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Renki could not open your camera. Choose a photo from your phone instead — a
+          Renki could not open your camera. Choose a photo from your phone instead. A
           clear, recent picture of your face.
         </p>
       )}

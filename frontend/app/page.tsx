@@ -65,13 +65,17 @@ export default function SignInPage() {
           </h2>
           <ul className="space-y-5 text-sm">
             {[
+              // Each of these has to be true. The first used to read "Every
+              // rider verified against their student record", which stopped
+              // being true when the gender challenge replaced signup
+              // verification: nobody is verified up front any more.
               {
                 icon: ShieldCheck,
-                text: 'Every rider verified against their student record',
+                text: 'Only northsouth.edu accounts, so everyone is from your campus',
               },
               {
                 icon: Users,
-                text: 'You choose who you ride with — same gender by default',
+                text: 'A ride happens only when you have both said yes',
               },
               { icon: MapPin, text: 'First ride starts on campus, where it is safest' },
             ].map(({ icon: Icon, text }) => (

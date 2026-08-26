@@ -172,7 +172,7 @@ export default function ProfilePage() {
             </h2>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Get told when someone matches with you, a ride is cancelled, or a friend
-              request arrives — even with Renki closed.
+              request arrives, even with Renki closed.
             </p>
             <NotificationSettings isAdmin={current.isAdmin} />
           </section>
@@ -422,7 +422,7 @@ function MatchingPreference({
     {
       value: true,
       title: 'Anyone',
-      body: 'You will also be matched with riders of any gender — but only with people who have chosen this too.',
+      body: 'You will also be matched with riders of any gender, but only with people who have chosen this too.',
     },
   ];
 
@@ -472,7 +472,7 @@ function MatchingPreference({
 
       <p className="text-muted-foreground text-xs leading-relaxed">
         This applies to stranger matching only. Friends you have already met in person are
-        unaffected. You can change it whenever you like — it takes effect on your next
+        unaffected. You can change it whenever you like. It takes effect on your next
         search.
       </p>
     </section>

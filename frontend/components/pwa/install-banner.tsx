@@ -130,7 +130,7 @@ export function InstallBanner() {
 
       <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
         {ios
-          ? 'Add Renki to your Home Screen to get notified when someone matches with you — on iPhone, notifications only work once it is installed.'
+          ? 'Add Renki to your Home Screen to get notified when someone matches with you. On iPhone, notifications only work once it is installed.'
           : 'Install Renki to get notified when someone matches with you, even with the app closed.'}
       </p>
 
