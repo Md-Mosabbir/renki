@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { notFound } from 'next/navigation';
 
 import { MeetupBlob } from '@/components/meetup/meetup-blob';
 import type { BlobPhase } from '@/components/meetup/meetup-blob';
@@ -32,6 +33,12 @@ const PHASES: { value: BlobPhase; label: string; note: string }[] = [
 const SAMPLE_CODE = 'K7M4XQ92BD';
 
 export default function BlobLabPage() {
+  // Not shipped. This is a development instrument — see the note above — and
+  // it was reachable as a public route in production, which is the same class
+  // of mistake as leaving /api/dev mounted. NODE_ENV is inlined into the client
+  // bundle at build time, so the production build cannot reach the page at all.
+  if (process.env.NODE_ENV === 'production') notFound();
+
   const [phase, setPhase] = useState<BlobPhase>('idle');
   const [showPlate, setShowPlate] = useState(false);
   const [size, setSize] = useState(360);

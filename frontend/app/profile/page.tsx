@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
+import { AppLoader } from '@/components/motion/mark';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError, session } from '@/lib/api';
 import { canRide } from '@/lib/trust';
@@ -53,13 +54,12 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState<User | null>(null);
 
   if (status !== 'authenticated') {
+    // The cold-start session check: nothing about the next screen is known yet,
+    // not even whether you are signed in. Once that is settled the route's own
+    // loading.tsx takes over with a skeleton in the shape of this page.
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div
-          className="bg-brand size-3 animate-pulse"
-          role="status"
-          aria-label="Loading"
-        />
+        <AppLoader label="Loading" />
       </div>
     );
   }

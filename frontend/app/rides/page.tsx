@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Clock, Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
+import { ArrowRight, Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
 
 import { AppShell, Page } from '@/components/app-shell';
 import { AppLoader } from '@/components/motion/mark';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
 import { OpenSearchBanner } from '@/components/rides/open-search-banner';
+import { RecentRides } from '@/components/rides/recent-rides';
 import { useSession } from '@/lib/use-session';
 import { canRide, isChallenged, isSuspended } from '@/lib/trust';
 import { ChallengeBanner } from '@/components/verify/challenge-banner';
@@ -107,28 +108,7 @@ export default function RidesPage() {
             )}
           </section>
 
-          {/* Placeholder, labelled. */}
-          <section className="space-y-4">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-sm font-semibold tracking-widest uppercase">Recent</h2>
-              <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-                Sample data
-              </span>
-            </div>
-            <ul className="border-border divide-border divide-y border">
-              {SAMPLE_RIDES.map((ride) => (
-                <li key={ride.id} className="flex items-center gap-4 p-5">
-                  <Clock className="text-muted-foreground size-4 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{ride.destination}</p>
-                    <p className="text-muted-foreground text-xs">
-                      with {ride.partner} · {ride.date}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <RecentRides />
         </div>
       </Page>
     </AppShell>
@@ -194,11 +174,6 @@ function greeting(): string {
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
 }
-
-const SAMPLE_RIDES = [
-  { id: '1', destination: 'Dhanmondi 27', partner: 'Ishrat', date: '12 Aug' },
-  { id: '2', destination: 'Banani 11', partner: 'Farhana', date: '9 Aug' },
-];
 
 function LoadingScreen() {
   return (
