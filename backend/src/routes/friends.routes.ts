@@ -6,6 +6,7 @@ import {
   getFriendGraph,
   getFriends,
   getFriendship,
+  postBlockUser,
   postFriendRequest,
   postFriendResponse,
   postMeetupCode,
@@ -35,6 +36,11 @@ router.get('/graph', getFriendGraph);
 // POST /api/friends/requests   body: { userId }
 // If they already requested you, this accepts theirs instead of creating a second row.
 router.post('/requests', postFriendRequest);
+
+// POST /api/friends/block   body: { userId }
+// Blocks anyone, friendship or not. Declared before the /:id routes so 'block'
+// is never read as a friendship id.
+router.post('/block', postBlockUser);
 
 // POST /api/friends/meetups/scan   body: { code }
 // The moment a friendship becomes real. Declared before the /:id routes so a

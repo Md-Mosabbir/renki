@@ -219,6 +219,7 @@ describe('toPublicUser', () => {
       phone: '+8801712345678',
       student_id: '2211545642',
       profile_completed_at: null,
+      is_admin: false,
       ...overrides,
     };
   }

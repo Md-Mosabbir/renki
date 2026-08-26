@@ -25,6 +25,14 @@ export interface User {
   studentId: string | null;
   /** False until the onboarding form is submitted. Drives the signup routing. */
   profileCompleted: boolean;
+  /**
+   * Moderator. Used only to decide whether to show the reports queue link.
+   *
+   * Never trusted as authorisation: `GET /api/admin/reports` re-reads the flag
+   * from the database on every request, so flipping this in a browser reveals
+   * nothing but a link that 404s.
+   */
+  isAdmin: boolean;
 }
 
 export interface AuthResult {
@@ -387,3 +395,82 @@ export interface RideHistoryPage {
   totalCompleted: number;
   hasMore: boolean;
 }
+
+/* ------------------------------------------------------------------ *
+ * Reports
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mirrors REPORT_REASONS in backend/src/models/report.model.ts and
+ * chk_reports_reason. Keep the three in step by hand.
+ *
+ * `impersonation` is not a sub-case of `other`: the whole scan model exists to
+ * prove the person who turned up is the person who matched, so "they were not
+ * who their profile said" is the one report a moderator must see first.
+ */
+export type ReportReason =
+  'no_show' | 'unsafe_behaviour' | 'harassment' | 'impersonation' | 'other';
+
+export type ReportStatus = 'open' | 'under_review' | 'resolved' | 'dismissed';
+
+/** The three a moderator may move a report INTO. `open` is where it starts. */
+export type ReviewAction = 'under_review' | 'resolved' | 'dismissed';
+
+/**
+ * A report as its author sees it.
+ *
+ * Carries nothing about the review beyond `status` — not who looked at it, not
+ * what they wrote. The queue is not a channel between the two parties.
+ */
+export interface Report {
+  id: string;
+  reportedUserId: string;
+  reportedUserName: string;
+  rideGroupId: string | null;
+  reason: ReportReason;
+  description: string | null;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+/** A report as a moderator sees it: both parties named, plus review state. */
+export interface AdminReport extends Report {
+  reporterId: string;
+  reporterName: string;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+}
+
+export interface ReportInput {
+  reportedUserId: string;
+  reason: ReportReason;
+  description?: string | null;
+  /** The ride it happened on, when there was one. */
+  rideGroupId?: string | null;
+}
+
+export interface AdminReportPage {
+  reports: AdminReport[];
+  hasMore: boolean;
+}
+
+/**
+ * What each reason says on screen.
+ *
+ * Here rather than in a component because two screens render them — the report
+ * form and the moderation queue — and two lists of labels drift.
+ */
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  no_show: 'They never turned up',
+  unsafe_behaviour: 'Unsafe behaviour',
+  harassment: 'Harassment',
+  impersonation: 'Not who their profile said',
+  other: 'Something else',
+};
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  open: 'Open',
+  under_review: 'Being looked at',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed',
+};

@@ -28,3 +28,15 @@ INSERT INTO users (id, name, email, google_id, profile_picture_url, id_card_imag
 -- row like this the group picker looks identical whether its narrowing works or
 -- does nothing at all.
 ('10000000-0000-0000-0000-000000000007', 'Imran Hossain',     'imran.hossain@northsouth.edu', '119483027561948302756', 'https://cdn.nsuride.app/avatars/imran.jpg',   'https://cdn.nsuride.app/idcards/imran.jpg',   'male',   'North South University', 'verified',    '2004-02-23', '+8801712345607', '2041234607', '2026-02-10 10:15:00+06', '2026-02-10 09:50:00+06');
+
+-- The moderator, in a statement of its own because it is the only row that
+-- sets is_admin and the only one outside the rider fixtures entirely.
+--
+-- Deliberately in NO friendship, group or ride. `users.is_admin` gates the
+-- report queue, and an admin who is also a rider makes every queue test
+-- ambiguous — you can never tell whether a report is visible because the
+-- account is an admin or because it was a party to the ride. This account has
+-- no other relationship to anything, so the only reason it can read a report
+-- is the flag.
+INSERT INTO users (id, name, email, google_id, profile_picture_url, gender, university, trust_stage, date_of_birth, phone, student_id, profile_completed_at, created_at, is_admin) VALUES
+('10000000-0000-0000-0000-000000000099', 'Renki Moderator', 'moderator@northsouth.edu', '190000000000000000001', NULL, 'female', 'North South University', 'established', '1995-05-05', '+8801712345699', '1000000099', '2026-01-01 09:00:00+06', '2026-01-01 09:00:00+06', true);

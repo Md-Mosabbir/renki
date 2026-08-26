@@ -8,6 +8,7 @@ import type { Destination, RideGroup } from '@/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ReportPanel } from '@/components/reports/report-panel';
 
 /**
  * One ride group.
@@ -51,6 +52,23 @@ export function GroupCard({
 }: GroupCardProps) {
   const mine = group.members.find((member) => member.id === viewerId);
   const awaitingMe = group.status === 'forming' && mine?.inviteStatus === 'pending';
+
+  /** Which member's report form is open, if any. */
+  const [reporting, setReporting] = useState<string | null>(null);
+
+  /**
+   * Reporting is offered once the ride is real — matched, under way, or over.
+   * Not while 'forming': nobody has met yet, so there is nothing to report, and
+   * the server would refuse anyway unless a friendship already exists.
+   */
+  const reportable =
+    group.status === 'matched' ||
+    group.status === 'active' ||
+    group.status === 'completed';
+
+  const others = group.members.filter(
+    (member) => member.id !== viewerId && member.inviteStatus === 'accepted'
+  );
 
   return (
     <article
@@ -166,6 +184,39 @@ export function GroupCard({
           </span>
         </div>
       )}
+
+      {reportable && others.length > 0 && (
+        <div className="mt-5 flex flex-wrap gap-x-4 gap-y-1">
+          {others.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              onClick={() => {
+                setReporting((current) => (current === member.id ? null : member.id));
+              }}
+              className="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline-offset-4 hover:underline"
+            >
+              {reporting === member.id
+                ? 'Cancel'
+                : `Report ${member.name.split(/\s+/)[0] ?? member.name}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {others
+        .filter((member) => member.id === reporting)
+        .map((member) => (
+          <ReportPanel
+            key={member.id}
+            personId={member.id}
+            personName={member.name}
+            rideGroupId={group.id}
+            onClose={() => {
+              setReporting(null);
+            }}
+          />
+        ))}
 
       {awaitingMe && (
         <div className="mt-5 flex gap-2">

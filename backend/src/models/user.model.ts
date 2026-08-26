@@ -35,6 +35,14 @@ export interface UserRow {
   phone: string | null;
   student_id: string | null;
   profile_completed_at: Date | null;
+  /**
+   * Moderator. Gates the report queue and nothing else.
+   *
+   * Set by hand in SQL, deliberately: there is no endpoint that grants it, so
+   * the only way to become an admin is for someone with database access to say
+   * so. An app that can promote its own users is an app where a bug can.
+   */
+  is_admin: boolean;
 }
 
 /**
@@ -55,6 +63,8 @@ export interface PublicUser {
   studentId: string | null;
   /** False until the onboarding form is submitted. Drives the signup flow. */
   profileCompleted: boolean;
+  /** Moderator. The client uses it only to decide whether to show the queue. */
+  isAdmin: boolean;
 }
 
 /** What the Google sign-in step knows about a student before any form. */
@@ -92,6 +102,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     phone: row.phone,
     studentId: row.student_id,
     profileCompleted: row.profile_completed_at !== null,
+    isAdmin: row.is_admin,
   };
 }
 

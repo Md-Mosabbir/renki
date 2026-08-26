@@ -6,6 +6,7 @@ import { ArrowRight, CircleSlash, Users } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import type { RideHistoryEntry } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
+import { ReportPanel } from '@/components/reports/report-panel';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
 
@@ -130,6 +131,9 @@ export default function HistoryPage() {
 }
 
 function HistoryCard({ ride }: { ride: RideHistoryEntry }) {
+  /** Which companion's report form is open, if any. Ids, so two cards cannot
+   *  both think they are the open one. */
+  const [reporting, setReporting] = useState<string | null>(null);
   const cancelled = ride.status === 'cancelled';
   // When it concluded — a different column per outcome. departureTime is the
   // last resort, and a poor one: a ride cancelled before it was due to leave
@@ -178,6 +182,42 @@ function HistoryCard({ ride }: { ride: RideHistoryEntry }) {
           <p key={person.id} className="text-muted-foreground text-xs">
             {person.name.split(/\s+/)[0]} got out at {person.dropoffLabel}
           </p>
+        ))}
+
+      {/* Reporting lives here because this is the screen where you realise
+          something went wrong — after the fact, looking back at the ride. The
+          other entry point is a live ride, where it matters most. */}
+      {ride.companions.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {ride.companions.map((person) => (
+            <button
+              key={person.id}
+              type="button"
+              onClick={() => {
+                setReporting((current) => (current === person.id ? null : person.id));
+              }}
+              className="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline-offset-4 hover:underline"
+            >
+              {reporting === person.id
+                ? 'Cancel'
+                : `Report ${person.name.split(/\s+/)[0] ?? person.name}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {ride.companions
+        .filter((person) => person.id === reporting)
+        .map((person) => (
+          <ReportPanel
+            key={person.id}
+            personId={person.id}
+            personName={person.name}
+            rideGroupId={ride.id}
+            onClose={() => {
+              setReporting(null);
+            }}
+          />
         ))}
 
       {/* "3rd ride together" is the entire reason ride_histories is written.

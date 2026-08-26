@@ -1,4 +1,4 @@
-import { httpApi } from './http';
+import { httpApi, reportsApi } from './http';
 
 export * from './types';
 
@@ -86,6 +86,20 @@ export const api = {
   swipe: httpApi.swipe,
   /** GET /api/rides/history — the only reader of `ride_histories`. Paged. */
   rideHistory: httpApi.rideHistory,
+
+  // ---- REAL — served by backend/src/routes/reports.routes.ts ----
+  /** POST /api/reports — does NOT block; see blockUser. */
+  report: reportsApi.report,
+  /** GET /api/reports/mine */
+  myReports: reportsApi.myReports,
+  /** POST /api/friends/block — the only way to block a stranger. */
+  blockUser: reportsApi.blockUser,
+
+  // ---- REAL — served by backend/src/routes/admin.routes.ts (moderators) ----
+  /** GET /api/admin/reports — 404s for non-moderators, by design. */
+  adminReports: reportsApi.adminReports,
+  /** PATCH /api/admin/reports/:id */
+  reviewReport: reportsApi.reviewReport,
 };
 
 const TOKEN_KEY = 'renki.token';

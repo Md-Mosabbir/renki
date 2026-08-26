@@ -4,6 +4,7 @@ import type { FriendshipAction } from '../models/friendship.model.js';
 import { toPublicFriendship } from '../models/friendship.model.js';
 import {
   MEETUP_CODE_TTL_SECONDS,
+  blockUser,
   findFriendshipForUser,
   issueMeetupCode,
   listFriendships,
@@ -196,4 +197,30 @@ export async function getFriendship(req: Request, res: Response): Promise<void> 
   const userId = requireUserId(req);
   const row = await findFriendshipForUser(requireParam(req, 'id'), userId);
   res.status(200).json({ data: { friendship: toPublicFriendship(row, userId) } });
+}
+
+/**
+ * POST /api/friends/block   body: { userId }
+ *
+ * Blocking anyone, whether or not a friendship exists. The existing
+ * /:id/respond route needs a friendship id, so two people who matched as
+ * strangers previously had no way to block each other at all — which is the
+ * pair the matcher is most likely to reunite.
+ *
+ * Separate from reporting on purpose. A report asks the university to look at
+ * something; a block tells the matcher to keep two people apart. Most students
+ * will do both, and they are still two decisions.
+ */
+export async function postBlockUser(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new HttpError(401, 'Unauthorized');
+  }
+
+  const { userId } = req.body as { userId?: unknown };
+  if (typeof userId !== 'string' || userId === '') {
+    throw new HttpError(400, 'userId is required');
+  }
+
+  const friendship = await blockUser(req.user.id, userId);
+  res.status(200).json({ data: { friendship } });
 }

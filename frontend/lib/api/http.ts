@@ -1,5 +1,6 @@
 import { ApiError } from './types';
 import type {
+  AdminReportPage,
   AuthResult,
   CreateGroupInput,
   Deck,
@@ -14,6 +15,9 @@ import type {
   MeetupCode,
   ProfileInput,
   ProfileUpdate,
+  Report,
+  ReportInput,
+  ReviewAction,
   RideGroup,
   RideHistoryPage,
   RideRequest,
@@ -408,6 +412,68 @@ export const devApi = {
     return request<AuthResult>('/dev/login', {
       method: 'POST',
       body: JSON.stringify({ email }),
+    });
+  },
+};
+
+/* ---------------- reports ---------------- */
+
+/**
+ * File a report.
+ *
+ * Does NOT block anyone — see `blockUser`. The two are separate acts and the
+ * server keeps them that way; the report screen offers blocking as a follow-up.
+ */
+export const reportsApi = {
+  async report(input: ReportInput): Promise<Report> {
+    const { report } = await request<{ report: Report }>('/reports', {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return report;
+  },
+
+  async myReports(): Promise<Report[]> {
+    const { reports } = await request<{ reports: Report[] }>('/reports/mine', {
+      auth: true,
+    });
+    return reports;
+  },
+
+  /**
+   * Block anyone, friendship or not.
+   *
+   * The only way to block someone matched as a stranger: every other block
+   * needs a friendship id, and a stranger pairing has no friendship row.
+   */
+  async blockUser(userId: string): Promise<void> {
+    await request<unknown>('/friends/block', {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+  },
+
+  /** Moderator only. 404s for everyone else — the surface does not exist. */
+  async adminReports(
+    status?: string,
+    limit?: number,
+    offset?: number
+  ): Promise<AdminReportPage> {
+    const params = new URLSearchParams();
+    if (status !== undefined && status !== '') params.set('status', status);
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (offset !== undefined) params.set('offset', String(offset));
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    return request<AdminReportPage>(`/admin/reports${suffix}`, { auth: true });
+  },
+
+  async reviewReport(reportId: string, status: ReviewAction): Promise<void> {
+    await request<unknown>(`/admin/reports/${reportId}`, {
+      auth: true,
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   },
 };

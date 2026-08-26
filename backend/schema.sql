@@ -163,7 +163,12 @@ CREATE TABLE public.reports (
     description text,
     status character varying(20) DEFAULT 'open'::character varying NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    reviewed_at timestamp with time zone,
+    reviewed_by_user_id uuid,
     CONSTRAINT chk_report_not_self CHECK ((reporter_id <> reported_user_id)),
+    CONSTRAINT chk_reports_closed_are_reviewed CHECK ((((status)::text <> ALL ((ARRAY['resolved'::character varying, 'dismissed'::character varying])::text[])) OR (reviewed_at IS NOT NULL))),
+    CONSTRAINT chk_reports_reason CHECK (((reason)::text = ANY ((ARRAY['no_show'::character varying, 'unsafe_behaviour'::character varying, 'harassment'::character varying, 'impersonation'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT chk_reports_reviewed_pair CHECK (((reviewed_at IS NULL) = (reviewed_by_user_id IS NULL))),
     CONSTRAINT reports_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'under_review'::character varying, 'resolved'::character varying, 'dismissed'::character varying])::text[])))
 );
 
@@ -654,6 +659,13 @@ CREATE INDEX reports_group_idx ON public.reports USING btree (ride_group_id);
 
 
 --
+-- Name: reports_queue_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reports_queue_idx ON public.reports USING btree (status, created_at);
+
+
+--
 -- Name: reports_reported_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -787,6 +799,13 @@ CREATE UNIQUE INDEX uq_meetup_live_per_friendship ON public.friend_meetups USING
 
 
 --
+-- Name: uq_open_report_per_pair; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_open_report_per_pair ON public.reports USING btree (reporter_id, reported_user_id) WHERE ((status)::text = ANY ((ARRAY['open'::character varying, 'under_review'::character varying])::text[]));
+
+
+--
 -- Name: uq_qr_live_per_group; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -887,6 +906,14 @@ ALTER TABLE ONLY public.reports
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reports reports_reviewed_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_reviewed_by_user_id_fkey FOREIGN KEY (reviewed_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

@@ -513,6 +513,84 @@ is that `chk_qr_not_self` forbids `consumed_by_user_id = issued_by_user_id`, so
 "mark consumed" crashes whenever the person cancelling is the person who minted
 the code, which is the common case.
 
+## Reports and blocking
+
+**Reporting and blocking are two acts, not one.** A report asks the university
+to look at something; a block tells the matcher to keep two people apart. Most
+students will do both, and they are still two decisions addressed to two
+different audiences. `POST /api/reports` therefore never touches `friendships`,
+and `report.service.ts` has no imports from the friendship layer.
+
+The consequence has to be carried by the UI: **filing a report does not stop
+the next match.** The report screen offers blocking immediately afterwards, and
+if that offer is ever removed, someone will report a person and be matched with
+them the same evening.
+
+**`POST /api/friends/block` exists because blocking a stranger was impossible.**
+Every other block goes through `/api/friends/:id/respond`, which needs a
+friendship id — so two people who matched as strangers had no way to block each
+other at all, which is exactly the pair the matcher will reunite.
+`candidate-query.ts` excludes blocked pairs and nothing else, so this endpoint
+is the only thing standing between a bad ride and a repeat of it.
+
+**`blockUser` deletes and re-inserts rather than transitioning.** The transition
+table has no `block` out of `declined`, deliberately — a declined request is
+terminal as an _answer_, and `friendship.test.ts` asserts that exhaustively.
+Blocking is not a move in the friend-request protocol; it is a safety act that
+must work from any state including no state at all. Routing it through the
+table would mean weakening a rule that exists for an unrelated reason. The
+blocker becomes `requester_id`: not a claim about who asked, but a record of who
+blocked.
+
+**Who may report whom is bounded, and the bound is also a privacy rule.** A
+shared `ride_group` in any state, or a `friendships` row in either direction.
+Unbounded reporting is a harassment vector in itself, and "no such user" and
+"never met them" answer the _same_ 404 — distinguishing them would turn the
+endpoint into a directory lookup that confirms which ids exist.
+
+**`reason` is a fixed vocabulary and that migration is a cautionary tale.** The
+column was `VARCHAR(100)` with no constraint, and the dev seed had already
+drifted into `'Late arrival'` and `'Behavioral concern'` — free-typed, two
+categories no queue could ever group by. Migration 25 maps the old values,
+preserves the original string into `description` rather than discarding it, and
+adds the CHECK.
+
+**`impersonation` is not a sub-case of `other`.** The whole scan model exists to
+prove the person who turned up is the person who matched. This is the report
+that says that model failed, and burying it would hide the one signal that
+matters most.
+
+**`uq_open_report_per_pair` is a partial unique index, not a rate limiter.** One
+live report per pair, `WHERE status IN ('open','under_review')`. A report is a
+weapon as well as a protection, and without it one student can bury a queue a
+human has to read. Partial, so once a report is resolved the same pair may
+report again — a second incident is a real thing that happens.
+
+**Nothing automatic ever happens to a reported account.** No suspension, no
+`trust_stage` change, no threshold. "Three reports and you are out" is a
+griefing vector: three friends coordinating can kill an account. A human
+decides, and the queue exists so a human can.
+
+**`requireAdmin` answers 404, not 403.** A 403 confirms `/api/admin/*` exists
+and that the caller is merely not allowed, which tells every signed-in student
+there is a moderation surface worth attacking. It also reads `is_admin` from the
+database rather than the token, for the same reason `auth.service.ts` keeps
+`trust_stage` out of the JWT — a seven-day token would go on asserting admin
+long after the flag was removed.
+
+**There is no endpoint that grants `is_admin`.** It is set by hand in SQL. An
+app that can promote its own users is an app where a bug can.
+
+**The admin queue is ordered oldest-first**, unlike every other list in this
+API. A queue is worked from the bottom; newest-first means the report nobody has
+looked at in a week sinks further every time a new one arrives.
+
+**Report review has no transition table**, unlike friendships. Any of
+`under_review` / `resolved` / `dismissed` is reachable from any other, because a
+moderator who resolves something and then realises they were wrong must be able
+to reopen it. `open` is _not_ reachable — reopening is `under_review`, which
+records who did it.
+
 ## Architecture
 
 MVC, strictly layered: **routes → controllers → services → models**. Each layer

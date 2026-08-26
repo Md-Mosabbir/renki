@@ -506,6 +506,83 @@ export async function respondToRequest(
  * friends" answers, and keeping the row would make re-adding someone hit the
  * canonical pair index instead of creating a fresh request.
  */
+/**
+ * Block a person outright, whether or not there is a friendship between you.
+ *
+ * This exists because blocking was only ever reachable through
+ * `POST /api/friends/:id/respond`, which needs a friendship id — so two people
+ * who matched as STRANGERS had no way to block each other at all. That is the
+ * pair the matcher is most likely to put back together, since
+ * candidate-query.ts excludes blocked pairs and nothing else.
+ *
+ * DELETE then INSERT rather than a transition, for two reasons. The transition
+ * table has no `block` out of 'declined' — deliberately, because a declined
+ * request is terminal as an ANSWER and re-requesting is already a delete and
+ * re-insert. And blocking is not a move in the friend-request protocol; it is
+ * a safety act that must work from any state, including no state at all.
+ * Routing it through the table would mean weakening a rule that exists for an
+ * unrelated reason.
+ *
+ * The blocker becomes `requester_id`. That is not a claim about who asked — it
+ * records who did the blocking, which is the only thing left worth knowing
+ * about a pair in this state.
+ *
+ * Idempotent: blocking someone already blocked is a no-op, not a 409. A student
+ * tapping it twice is not an error worth a message.
+ */
+export async function blockUser(
+  userId: string,
+  otherUserId: string
+): Promise<FriendshipWithUserRow | null> {
+  if (userId === otherUserId) {
+    throw new HttpError(400, 'You cannot block yourself');
+  }
+
+  const blockedId = await transaction(async (client) => {
+    const { rows: people } = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE id = $1`,
+      [otherUserId]
+    );
+    if (!people[0]) {
+      throw new HttpError(404, 'No such person');
+    }
+
+    // Lock the canonical pair the same way the unique index groups it, so two
+    // simultaneous blocks serialise instead of racing into a duplicate.
+    const { rows: existing } = await client.query<{ id: string; status: string }>(
+      `SELECT id, status FROM friendships
+        WHERE LEAST(requester_id, addressee_id)    = LEAST($1::uuid, $2::uuid)
+          AND GREATEST(requester_id, addressee_id) = GREATEST($1::uuid, $2::uuid)
+        FOR UPDATE`,
+      [userId, otherUserId]
+    );
+
+    const row = existing[0];
+    if (row?.status === 'blocked') {
+      return row.id;
+    }
+
+    if (row) {
+      await client.query(`DELETE FROM friendships WHERE id = $1`, [row.id]);
+    }
+
+    const { rows: created } = await client.query<{ id: string }>(
+      `INSERT INTO friendships (requester_id, addressee_id, status, responded_at)
+       VALUES ($1, $2, 'blocked', now())
+       RETURNING id`,
+      [userId, otherUserId]
+    );
+
+    const inserted = created[0];
+    if (!inserted) {
+      throw new HttpError(500, 'Failed to block that person');
+    }
+    return inserted.id;
+  });
+
+  return findFriendshipForUser(blockedId, userId);
+}
+
 export async function removeFriendship(
   userId: string,
   friendshipId: string

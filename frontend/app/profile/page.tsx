@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Wordmark } from '@/components/brand/wordmark';
+import { MyReports } from '@/components/reports/my-reports';
 
 /**
  * Profile. REAL — every field comes from GET /api/auth/me.
@@ -138,6 +140,31 @@ export default function ProfilePage() {
               Gender decides who you can be matched with, so it cannot be changed here.
             </p>
           </section>
+
+          <MyReports />
+
+          {/* Moderators only. Here rather than in the main nav because AppShell
+              renders on every page and does not read the session — putting it
+              there would mean an extra /api/auth/me on every screen to decide
+              whether to draw one link. */}
+          {current.isAdmin && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold tracking-widest uppercase">
+                Moderation
+              </h2>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="h-14 w-full cursor-pointer justify-between rounded-none text-base"
+              >
+                <Link href="/admin/reports">
+                  Reports queue
+                  <ShieldCheck className="size-4" />
+                </Link>
+              </Button>
+            </section>
+          )}
 
           <section className="space-y-3">
             <Button
