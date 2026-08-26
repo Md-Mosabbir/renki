@@ -84,7 +84,7 @@ export function ReportPanel({
                 size="sm"
                 variant="destructive"
                 disabled={busy}
-                className="rounded-full"
+                className="rounded-none"
                 onClick={() => {
                   setBusy(true);
                   api
@@ -109,7 +109,7 @@ export function ReportPanel({
                 size="sm"
                 variant="ghost"
                 onClick={onClose}
-                className="rounded-full"
+                className="rounded-none"
               >
                 No thanks
               </Button>
@@ -118,7 +118,7 @@ export function ReportPanel({
         )}
 
         {blocked && (
-          <Button size="sm" variant="outline" onClick={onClose} className="rounded-full">
+          <Button size="sm" variant="outline" onClick={onClose} className="rounded-none">
             Done
           </Button>
         )}
@@ -214,7 +214,7 @@ export function ReportPanel({
           size="sm"
           variant="destructive"
           disabled={busy || reason === null || needsWords}
-          className="rounded-full"
+          className="rounded-none"
         >
           {busy ? 'Sending…' : 'Report'}
         </Button>
@@ -223,7 +223,7 @@ export function ReportPanel({
           size="sm"
           variant="ghost"
           onClick={onClose}
-          className="rounded-full"
+          className="rounded-none"
         >
           Cancel
         </Button>

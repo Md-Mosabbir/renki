@@ -64,14 +64,14 @@ export function RideHandoff({
         onClick={() => {
           setOpen(true);
         }}
-        className="rounded-full"
+        className="rounded-none"
       >
         <Car className="size-3.5" />
         Get a car
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl">
+        <SheetContent side="bottom" className="rounded-none">
           <SheetHeader>
             <SheetTitle>Get a car</SheetTitle>
             <SheetDescription>
@@ -83,7 +83,7 @@ export function RideHandoff({
             {/* The route, checked at a glance. A hexagon at each end rather
                 than the usual dot-and-square: the cell is what this app uses
                 for a place everywhere else. */}
-            <div className="border-border bg-muted/40 mb-5 rounded-2xl border p-4">
+            <div className="border-border bg-muted/40 mb-5 rounded-none border p-4">
               <Stop label="Pickup" value={origin.label} />
               <span aria-hidden className="bg-border my-1 ml-[5px] block h-5 w-px" />
               <Stop label="Drop-off" value={destination.label} accent />
@@ -96,7 +96,7 @@ export function RideHandoff({
                     href={provider.href(trip)}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="border-border hover:bg-muted active:bg-muted flex items-center gap-3 rounded-2xl border p-4 transition-colors"
+                    className="border-border hover:bg-muted active:bg-muted flex items-center gap-3 rounded-none border p-4 transition-colors"
                   >
                     <span className="flex-1">
                       <span className="block text-base font-medium">
@@ -142,7 +142,7 @@ function Stop({
     <div className="flex items-center gap-3">
       <span
         aria-hidden
-        className={`hex-clip size-2.5 shrink-0 ${accent ? 'bg-brand' : 'bg-foreground'}`}
+        className={`size-2.5 shrink-0 ${accent ? 'bg-brand' : 'bg-foreground'}`}
       />
       <span className="min-w-0">
         <span className="text-muted-foreground block text-[11px] tracking-widest uppercase">

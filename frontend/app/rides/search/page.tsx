@@ -16,11 +16,12 @@ import type {
   RideRequest,
 } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
+import { SkeletonList } from '@/components/motion/skeleton';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { SwipeDeck } from '@/components/rides/swipe-deck';
 import { PinPicker } from '@/components/map/pin-picker';
-import { HexLoader, HexSpinner, SearchingRings } from '@/components/motion/hex';
+import { InlineMark, SearchingRings } from '@/components/motion/mark';
 import { SearchStatus } from '@/components/rides/search-status';
 import { MatchesSheet } from '@/components/rides/matches-sheet';
 import type { PinValue } from '@/components/map/pin-picker';
@@ -226,9 +227,7 @@ export default function StrangerSearchPage() {
           Rides
         </Link>
 
-        {phase === 'loading' && (
-          <HexLoader className="py-20" label="Loading your rides" />
-        )}
+        {phase === 'loading' && <SkeletonList rows={2} />}
 
         {phase === 'composing' && (
           <>
@@ -348,10 +347,10 @@ export default function StrangerSearchPage() {
                   (destinationMode === 'pin' ? pin === null : destinationId === '')
                 }
                 onClick={startSearch}
-                className="h-14 w-full justify-between rounded-full text-base"
+                className="h-14 w-full justify-between rounded-none text-base"
               >
                 {busy ? 'Searching…' : 'Find riders'}
-                {busy ? <HexSpinner className="size-4" /> : <Search className="size-4" />}
+                {busy ? <InlineMark className="size-4" /> : <Search className="size-4" />}
               </Button>
             </div>
           </>
@@ -430,7 +429,7 @@ export default function StrangerSearchPage() {
                 size="sm"
                 disabled={busy}
                 onClick={cancel}
-                className="rounded-full"
+                className="rounded-none"
               >
                 Cancel search
               </Button>

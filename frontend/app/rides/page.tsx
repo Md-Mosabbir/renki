@@ -7,8 +7,9 @@ import { ArrowRight, Clock, Search, ShieldAlert, ShieldCheck, Users } from 'luci
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader, HexSpinner } from '@/components/motion/hex';
+import { AppLoader, InlineMark } from '@/components/motion/mark';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
+import { OpenSearchBanner } from '@/components/rides/open-search-banner';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError } from '@/lib/api';
 import { isChallenged, isSuspended, isVerified } from '@/lib/trust';
@@ -75,6 +76,11 @@ export default function RidesPage() {
           {/* Someone picked you. Above the fork on purpose: it is the only
               thing on this page that another person is waiting on. */}
           {verified && <IncomingMatches onMatched={() => router.push('/groups')} />}
+
+          {/* A search already running. Below IncomingMatches because somebody
+              else waiting on an answer outranks your own search still looking,
+              and above the fork because it is the reason the fork will refuse. */}
+          {verified && <OpenSearchBanner />}
 
           {/* The fork. Two ways to find a ride and they are genuinely
               different products: a stranger match is one other person, chosen
@@ -206,7 +212,7 @@ const SAMPLE_RIDES = [
 function LoadingScreen() {
   return (
     <div className="flex flex-1 items-center justify-center">
-      <HexLoader label="Loading" />
+      <AppLoader label="Loading" />
     </div>
   );
 }
@@ -311,7 +317,7 @@ function TrustBanner({
           <Button onClick={() => void verify()} disabled={pending}>
             {pending ? (
               <>
-                <HexSpinner className="size-4" />
+                <InlineMark className="size-4" />
                 Verifying
               </>
             ) : (

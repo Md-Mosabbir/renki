@@ -39,7 +39,7 @@ export function MatchesSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[80svh] rounded-t-3xl">
+      <SheetContent side="bottom" className="max-h-[80svh] rounded-none">
         <SheetHeader>
           <SheetTitle>{cards.length} going your way</SheetTitle>
           <SheetDescription>
@@ -73,7 +73,7 @@ export function MatchesSheet({
               {/* The one thing worth surfacing in a list: their yes is already
                   recorded, so answering this card books the ride immediately. */}
               {card.theyAccepted && (
-                <Badge className="shrink-0 rounded-full">Waiting on you</Badge>
+                <Badge className="shrink-0 rounded-none">Waiting on you</Badge>
               )}
             </li>
           ))}

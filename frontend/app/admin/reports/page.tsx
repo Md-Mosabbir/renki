@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api, ApiError, REPORT_REASON_LABELS, REPORT_STATUS_LABELS } from '@/lib/api';
 import type { AdminReport, ReportStatus, ReviewAction } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader } from '@/components/motion/hex';
+import { SkeletonList } from '@/components/motion/skeleton';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
 
@@ -165,7 +165,7 @@ export default function AdminReportsPage() {
             ))}
           </div>
 
-          {reports === null && <HexLoader className="py-16" label="Loading the queue" />}
+          {reports === null && <SkeletonList rows={3} />}
 
           {reports !== null && reports.length === 0 && (
             <div className="border-border bg-muted/30 border-l-2 p-6">
@@ -270,7 +270,7 @@ function ReportRow({
             onClick={() => {
               onChallenge(report);
             }}
-            className="cursor-pointer rounded-full"
+            className="cursor-pointer rounded-none"
           >
             <UserRoundSearch className="size-4" />
             Ask them to confirm
@@ -287,7 +287,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'under_review');
             }}
-            className="rounded-full"
+            className="rounded-none"
           >
             Look into it
           </Button>
@@ -299,7 +299,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'resolved');
             }}
-            className="rounded-full"
+            className="rounded-none"
           >
             Resolve
           </Button>
@@ -312,7 +312,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'dismissed');
             }}
-            className="rounded-full"
+            className="rounded-none"
           >
             Dismiss
           </Button>

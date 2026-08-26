@@ -1,6 +1,6 @@
 'use client';
 
-import { Hex } from '@/components/motion/hex';
+import { Mark } from '@/components/motion/mark';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -39,14 +39,14 @@ export function SearchStatus({
 
   return (
     <div className="bg-background/95 sticky top-0 z-20 -mx-6 mb-8 px-6 py-3 backdrop-blur-sm md:-mx-10 md:px-10">
-      <div className="border-border bg-card flex items-center gap-3 rounded-2xl border p-3 pl-4">
+      <div className="border-border bg-card flex items-center gap-3 rounded-none border p-3 pl-4">
         <span className="relative flex size-3 shrink-0 items-center justify-center">
           {/* Pulses only while nothing has been found. Once there is somebody
               to look at, a blinking status light competes with them. */}
           {searching && (
-            <span className="animate-ring-expand bg-brand/40 hex-clip absolute size-3" />
+            <span className="animate-ring-expand bg-brand/40 absolute size-3" />
           )}
-          <Hex size="sm" className="bg-brand size-3" />
+          <Mark className="bg-brand size-3" />
         </span>
 
         {/* A button only once there is something to open. A control that does
@@ -82,7 +82,7 @@ export function SearchStatus({
           variant="ghost"
           onClick={onCancel}
           disabled={busy}
-          className="text-muted-foreground hover:text-foreground shrink-0 rounded-full"
+          className="text-muted-foreground hover:text-foreground shrink-0 rounded-none"
         >
           Stop
         </Button>

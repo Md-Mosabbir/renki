@@ -157,7 +157,7 @@ export function GroupCard({
           the code exists. */}
       {group.status === 'matched' && mine?.inviteStatus === 'accepted' && (
         <div className="mt-5 flex items-center gap-3">
-          <Button asChild size="sm" className="rounded-full">
+          <Button asChild size="sm" className="rounded-none">
             <Link href={`/groups/${group.id}/start`}>
               <QrCode className="size-3.5" />
               Start ride
@@ -175,7 +175,7 @@ export function GroupCard({
             variant="outline"
             disabled={pending}
             onClick={() => onComplete(group.id)}
-            className="rounded-full"
+            className="rounded-none"
           >
             <Flag className="size-3.5" />
             Finish ride
@@ -227,7 +227,7 @@ export function GroupCard({
             size="sm"
             disabled={pending}
             onClick={() => onRespond(group.id, true)}
-            className="rounded-full"
+            className="rounded-none"
           >
             <Check className="size-3.5" />
             Accept
@@ -237,7 +237,7 @@ export function GroupCard({
             variant="outline"
             disabled={pending}
             onClick={() => onRespond(group.id, false)}
-            className="rounded-full"
+            className="rounded-none"
           >
             <X className="size-3.5" />
             Decline
@@ -277,7 +277,7 @@ function CancelButton({
         onClick={() => {
           setConfirming(true);
         }}
-        className="text-muted-foreground rounded-full"
+        className="text-muted-foreground rounded-none"
       >
         Cancel ride
       </Button>
@@ -293,7 +293,7 @@ function CancelButton({
       onBlur={() => {
         setConfirming(false);
       }}
-      className="rounded-full"
+      className="rounded-none"
       autoFocus
     >
       Tap again to cancel

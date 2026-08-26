@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api';
 import type { ChallengeCase } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader } from '@/components/motion/hex';
+import { SkeletonList } from '@/components/motion/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -130,7 +130,7 @@ export default function AdminChallengesPage() {
             </p>
           </div>
 
-          {cases === null && <HexLoader className="py-16" label="Loading the queue" />}
+          {cases === null && <SkeletonList rows={2} />}
 
           {cases !== null && cases.length === 0 && (
             <div className="border-border bg-muted/30 border-l-2 p-6">
@@ -213,7 +213,7 @@ function CaseCard({
           onChange={(event) => {
             setNote(event.target.value);
           }}
-          className="h-12 rounded-full"
+          className="h-12 rounded-none"
         />
         <p className="text-muted-foreground text-xs">
           Shown to the student. Not shown to whoever reported them.
@@ -226,7 +226,7 @@ function CaseCard({
           onClick={() => {
             onDecide(item, true, note);
           }}
-          className="cursor-pointer rounded-full"
+          className="cursor-pointer rounded-none"
         >
           Clear them
         </Button>
@@ -242,7 +242,7 @@ function CaseCard({
               onClick={() => {
                 onDecide(item, false, note);
               }}
-              className="cursor-pointer rounded-full"
+              className="cursor-pointer rounded-none"
             >
               Yes — suspend {item.name.split(' ')[0]}
             </Button>
@@ -252,7 +252,7 @@ function CaseCard({
               onClick={() => {
                 setConfirming(false);
               }}
-              className="cursor-pointer rounded-full"
+              className="cursor-pointer rounded-none"
             >
               Cancel
             </Button>
@@ -264,7 +264,7 @@ function CaseCard({
             onClick={() => {
               setConfirming(true);
             }}
-            className="cursor-pointer rounded-full"
+            className="cursor-pointer rounded-none"
           >
             Confirm the report
           </Button>

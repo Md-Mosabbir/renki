@@ -13,7 +13,7 @@ import {
   subscribe,
 } from '@/lib/push';
 import { Button } from '@/components/ui/button';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 
 /**
  * Turning notifications on, and proving they work.
@@ -159,10 +159,10 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
           variant={subscribed ? 'outline' : 'default'}
           disabled={busy || (needsInstall && !subscribed)}
           onClick={subscribed ? disable : enable}
-          className="rounded-full"
+          className="rounded-none"
         >
           {busy ? (
-            <HexSpinner className="size-3.5" />
+            <InlineMark className="size-3.5" />
           ) : subscribed ? (
             <BellOff className="size-3.5" />
           ) : (
@@ -178,7 +178,7 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
             variant="outline"
             disabled={busy}
             onClick={sendTest}
-            className="rounded-full"
+            className="rounded-none"
           >
             <Send className="size-3.5" />
             Send test

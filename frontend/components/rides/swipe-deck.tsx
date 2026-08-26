@@ -161,7 +161,7 @@ export function SwipeDeck({ cards, onAnswer, busy }: SwipeDeckProps) {
           variant="outline"
           disabled={busy}
           onClick={() => onAnswer(top, false)}
-          className="size-14 rounded-full"
+          className="size-14 rounded-none"
           aria-label={`Pass on ${top.name}`}
         >
           <X className="size-5" />
@@ -170,7 +170,7 @@ export function SwipeDeck({ cards, onAnswer, busy }: SwipeDeckProps) {
           size="lg"
           disabled={busy}
           onClick={() => onAnswer(top, true)}
-          className="size-14 rounded-full"
+          className="size-14 rounded-none"
           aria-label={`Ride with ${top.name}`}
         >
           <Check className="size-5" />

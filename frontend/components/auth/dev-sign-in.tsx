@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 
 import { ApiError, session } from '@/lib/api';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 import { devApi } from '@/lib/api/http';
 import type { User } from '@/lib/api';
 import { postSignInPath } from '@/lib/redirect';
@@ -93,7 +93,7 @@ export function DevSignIn() {
         <div className="border-border border-t px-2 pt-2 pb-3">
           {users === null ? (
             <p className="text-muted-foreground flex items-center gap-2 px-2 py-3 text-sm">
-              <HexSpinner className="size-3.5" />
+              <InlineMark className="size-3.5" />
               Loading accounts
             </p>
           ) : users.length === 0 ? (
@@ -129,7 +129,7 @@ export function DevSignIn() {
                       </span>
                     </span>
                     {pendingEmail === user.email && (
-                      <HexSpinner className="size-3.5 shrink-0" />
+                      <InlineMark className="size-3.5 shrink-0" />
                     )}
                   </button>
                 </li>

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api';
 import type { ProfileInput } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StepShell } from '@/components/onboarding/step-shell';
@@ -92,7 +92,7 @@ export default function OnboardingPage() {
             size="lg"
             disabled={!complete}
             onClick={() => setStep('gender')}
-            className="group h-14 w-full justify-between rounded-full text-base"
+            className="group h-14 w-full justify-between rounded-none text-base"
           >
             Continue
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
@@ -150,11 +150,11 @@ export default function OnboardingPage() {
           size="lg"
           disabled={gender === null || pending}
           onClick={() => void submit()}
-          className="group h-14 w-full justify-between rounded-full text-base"
+          className="group h-14 w-full justify-between rounded-none text-base"
         >
           {pending ? 'Setting up…' : 'Finish'}
           {pending ? (
-            <HexSpinner className="size-4" />
+            <InlineMark className="size-4" />
           ) : (
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
           )}
@@ -213,7 +213,7 @@ function Field({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-12 rounded-full border-0 border-b-2 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+        className="h-12 rounded-none border-0 border-b-2 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
         {...props}
       />
     </div>

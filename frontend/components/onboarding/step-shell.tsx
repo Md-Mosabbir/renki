@@ -40,7 +40,7 @@ export function StepShell({
             {String(step).padStart(2, '0')} / {String(total).padStart(2, '0')}
           </span>
         </div>
-        <Progress value={(step / total) * 100} className="h-0.5 rounded-full" />
+        <Progress value={(step / total) * 100} className="h-0.5 rounded-none" />
       </header>
 
       <div className="flex flex-1 flex-col justify-center py-12">

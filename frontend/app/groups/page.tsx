@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import type { Destination, RideGroup, User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader } from '@/components/motion/hex';
+import { SkeletonList } from '@/components/motion/skeleton';
 import { GroupCard } from '@/components/groups/group-card';
 
 /**
@@ -152,7 +152,7 @@ export default function GroupsPage() {
             </p>
           </div>
 
-          <Button asChild size="sm" className="shrink-0 rounded-full">
+          <Button asChild size="sm" className="shrink-0 rounded-none">
             <Link href="/groups/new">
               <Plus className="size-4" />
               New
@@ -166,9 +166,7 @@ export default function GroupsPage() {
           </p>
         )}
 
-        {groups === null && error === null && (
-          <HexLoader className="py-16" label="Loading your groups" />
-        )}
+        {groups === null && error === null && <SkeletonList rows={2} />}
 
         {groups !== null && groups.length === 0 && (
           <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">

@@ -141,7 +141,7 @@ export function InstallBanner() {
           then <span className="text-foreground">Add to Home Screen</span>
         </p>
       ) : (
-        <Button size="sm" onClick={install} className="mt-4 w-full rounded-full">
+        <Button size="sm" onClick={install} className="mt-4 w-full rounded-none">
           Install
         </Button>
       )}

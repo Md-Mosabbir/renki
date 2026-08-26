@@ -7,7 +7,7 @@ import { Crosshair, Search } from 'lucide-react';
 import { geo } from '@/lib/geo';
 import type { GeoPoint, Place } from '@/lib/geo';
 import { Button } from '@/components/ui/button';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 
 /**
  * Drop a pin, get coordinates and a name for them.
@@ -133,7 +133,7 @@ export function PinPicker({
             aria-label="Search for a destination"
             className="h-11 w-full bg-transparent text-base focus-visible:outline-none"
           />
-          {searching && <HexSpinner className="text-muted-foreground size-4" />}
+          {searching && <InlineMark className="text-muted-foreground size-4" />}
         </div>
 
         <Button
@@ -143,10 +143,10 @@ export function PinPicker({
           onClick={useMyLocation}
           disabled={locating}
           aria-label="Use my current location"
-          className="h-11 w-11 shrink-0 rounded-full"
+          className="h-11 w-11 shrink-0 rounded-none"
         >
           {locating ? (
-            <HexSpinner className="size-4" />
+            <InlineMark className="size-4" />
           ) : (
             <Crosshair className="size-4" />
           )}

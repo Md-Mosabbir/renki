@@ -10,7 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import { CODE_SESSION_SECONDS, useRotatingCode } from '@/lib/use-rotating-code';
 import { buildRideStartLink, extractMeetupCode } from '@/lib/meetup-link';
 import { AppShell, Page } from '@/components/app-shell';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 import { Button } from '@/components/ui/button';
 import { MeetupBlob } from '@/components/meetup/meetup-blob';
 import { MeetupCodePlate } from '@/components/meetup/meetup-code-plate';
@@ -147,9 +147,9 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
               <Button
                 onClick={restart}
                 disabled={busy}
-                className="mx-auto mt-4 flex rounded-full"
+                className="mx-auto mt-4 flex rounded-none"
               >
-                {busy ? <HexSpinner className="size-4" /> : <QrCode className="size-4" />}
+                {busy ? <InlineMark className="size-4" /> : <QrCode className="size-4" />}
                 New code
               </Button>
             )}
@@ -170,7 +170,7 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
           <Button
             variant="ghost"
             size="sm"
-            className="rounded-full"
+            className="rounded-none"
             onClick={() => {
               setMode((current) => (current === 'show' ? 'scan' : 'show'));
             }}

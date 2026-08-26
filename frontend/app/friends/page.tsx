@@ -6,7 +6,8 @@ import { Check, ScanLine, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader, HexSpinner } from '@/components/motion/hex';
+import { SkeletonList } from '@/components/motion/skeleton';
+import { InlineMark } from '@/components/motion/mark';
 import { FriendRow } from '@/components/friends/friend-row';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -112,7 +113,7 @@ export default function FriendsPage() {
     return (
       <AppShell>
         <Page>
-          <HexLoader className="py-16" label="Loading your friends" />
+          <SkeletonList rows={4} />
         </Page>
       </AppShell>
     );
@@ -353,7 +354,7 @@ function AddFriends({ onAdded }: { onAdded: () => void }) {
 
       {searching ? (
         <div className="text-muted-foreground flex items-center gap-3 py-8 text-sm">
-          <HexSpinner className="size-4" />
+          <InlineMark className="size-4" />
           Searching
         </div>
       ) : candidates.length === 0 ? (

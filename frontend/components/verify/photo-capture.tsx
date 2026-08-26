@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, ImageUp, RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { HexSpinner } from '@/components/motion/hex';
+import { InlineMark } from '@/components/motion/mark';
 
 /**
  * Take one photo, front camera, and hand back a downscaled JPEG.
@@ -141,11 +141,11 @@ export function PhotoCapture({
             }}
             disabled={busy}
             size="lg"
-            className="flex-1 cursor-pointer rounded-full"
+            className="flex-1 cursor-pointer rounded-none"
           >
             {busy ? (
               <>
-                <HexSpinner className="size-4" />
+                <InlineMark className="size-4" />
                 Sending
               </>
             ) : (
@@ -159,7 +159,7 @@ export function PhotoCapture({
             onClick={() => {
               setPreview(null);
             }}
-            className="cursor-pointer rounded-full"
+            className="cursor-pointer rounded-none"
           >
             <RotateCcw className="size-4" />
             Retake
@@ -196,7 +196,7 @@ export function PhotoCapture({
           <Button
             onClick={shoot}
             size="lg"
-            className="flex-1 cursor-pointer rounded-full"
+            className="flex-1 cursor-pointer rounded-none"
           >
             <Camera className="size-4" />
             Take the photo
@@ -206,11 +206,11 @@ export function PhotoCapture({
             onClick={() => void startCamera()}
             disabled={cameraState === 'starting'}
             size="lg"
-            className="flex-1 cursor-pointer rounded-full"
+            className="flex-1 cursor-pointer rounded-none"
           >
             {cameraState === 'starting' ? (
               <>
-                <HexSpinner className="size-4" />
+                <InlineMark className="size-4" />
                 Opening camera
               </>
             ) : (
@@ -229,7 +229,7 @@ export function PhotoCapture({
           variant="outline"
           size="lg"
           onClick={() => fileRef.current?.click()}
-          className="cursor-pointer rounded-full"
+          className="cursor-pointer rounded-none"
         >
           <ImageUp className="size-4" />
           Choose a photo

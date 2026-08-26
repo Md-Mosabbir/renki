@@ -181,7 +181,7 @@ export default function ProfilePage() {
                 asChild
                 variant="outline"
                 size="lg"
-                className="h-14 w-full cursor-pointer justify-between rounded-full text-base"
+                className="h-14 w-full cursor-pointer justify-between rounded-none text-base"
               >
                 <Link href="/admin/reports">
                   Reports queue
@@ -192,7 +192,7 @@ export default function ProfilePage() {
                 asChild
                 variant="outline"
                 size="lg"
-                className="h-14 w-full cursor-pointer justify-between rounded-full text-base"
+                className="h-14 w-full cursor-pointer justify-between rounded-none text-base"
               >
                 <Link href="/admin/challenges">
                   Confirmations
@@ -212,7 +212,7 @@ export default function ProfilePage() {
                 // land on a page that immediately bounces you out again.
                 router.replace('/');
               }}
-              className="h-14 w-full cursor-pointer justify-between rounded-full text-base"
+              className="h-14 w-full cursor-pointer justify-between rounded-none text-base"
             >
               Sign out
               <LogOut className="size-4" />
@@ -314,7 +314,7 @@ function EditForm({
           onChange={(event) => {
             setName(event.target.value);
           }}
-          className="h-12 rounded-full"
+          className="h-12 rounded-none"
         />
       </div>
 
@@ -330,7 +330,7 @@ function EditForm({
           onChange={(event) => {
             setPhone(event.target.value);
           }}
-          className="h-12 rounded-full"
+          className="h-12 rounded-none"
         />
       </div>
 
@@ -339,7 +339,7 @@ function EditForm({
           type="submit"
           size="lg"
           disabled={saving}
-          className="h-12 flex-1 cursor-pointer rounded-full"
+          className="h-12 flex-1 cursor-pointer rounded-none"
         >
           {saving ? 'Saving…' : 'Save'}
         </Button>
@@ -348,7 +348,7 @@ function EditForm({
           variant="outline"
           size="lg"
           onClick={onCancel}
-          className="h-12 cursor-pointer rounded-full"
+          className="h-12 cursor-pointer rounded-none"
         >
           Cancel
         </Button>

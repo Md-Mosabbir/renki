@@ -6,7 +6,7 @@ import { ArrowRight, CircleSlash, Users } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import type { RideHistoryEntry } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
-import { HexLoader } from '@/components/motion/hex';
+import { SkeletonList } from '@/components/motion/skeleton';
 import { ReportPanel } from '@/components/reports/report-panel';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
@@ -80,9 +80,7 @@ export default function HistoryPage() {
             </p>
           )}
 
-          {rides === null && error === null && (
-            <HexLoader className="py-16" label="Loading your rides" />
-          )}
+          {rides === null && error === null && <SkeletonList rows={3} />}
 
           {rides !== null && rides.length === 0 && (
             <div className="border-border bg-muted/30 border-l-2 p-6">
@@ -116,7 +114,7 @@ export default function HistoryPage() {
                   setLoadingMore(false);
                 });
               }}
-              className="h-12 w-full cursor-pointer rounded-full"
+              className="h-12 w-full cursor-pointer rounded-none"
             >
               {loadingMore ? 'Loading…' : 'Show older rides'}
             </Button>
