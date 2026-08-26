@@ -787,14 +787,13 @@ them would make every future `add` produce a spurious diff.
 ## CI / CD
 
 **GitHub runs the checks. Render and Vercel run the release.** Two workflows,
-plus a scheduled smoke test. There is no deploy workflow and no manual step:
-a push to `main` deploys, the way it does on every other project.
+nothing else. There is no deploy workflow and no manual step: a push to `main`
+deploys, the way it does on every other project.
 
 | Workflow          | Triggers                              | Does                                      |
 | ----------------- | ------------------------------------- | ----------------------------------------- |
 | `backend-ci.yml`  | push + PR into `main` (path-filtered) | lint, typecheck, build, test; Docker boot |
 | `frontend-ci.yml` | push + PR into `main` (path-filtered) | lint, typecheck, build; Docker boot       |
-| `smoke.yml`       | daily cron, `workflow_dispatch`       | asserts things about the LIVE site        |
 
 Both CI workflows are path-filtered so a change to one workspace never pays for
 the other's run, and both also watch the root `package.json` /
@@ -838,19 +837,38 @@ visibly fails.
   against the old instance. Nothing polls it automatically any more; check it by
   hand after a deploy that matters.
 
-**`smoke.yml` keeps the three assertions that no unit test can make**, because
-each is about how production is CONFIGURED and each passes locally while being
-wrong live: `/api/health` answers, `/api/friends` 401s for an anonymous caller,
-and `POST /api/dev/login` **404s**. That last one is the important one —
-`routes/index.ts` mounts `/api/dev` only when `NODE_ENV` is not production, and
-a mistake there is a log-in-as-anyone endpoint on the public internet. It runs
-daily rather than per-deploy, so it can no longer prevent that, only report it.
+**What no longer has any check at all: `POST /api/dev/login` must 404 in
+production.** `routes/index.ts` mounts `/api/dev` only when `NODE_ENV` is not
+production, and a mistake there is a log-in-as-anyone endpoint on the public
+internet. No unit test can catch it, because the thing under test is the
+ENVIRONMENT — it passes locally while being wrong live. `deploy.yml` asserted it
+after every release; a scheduled workflow was tried and deliberately dropped as
+not worth a file for a once-daily alarm. So it is a manual check now, and this
+paragraph is the only thing that remembers it exists:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$PRODUCTION_API_URL/api/dev/login"   # must be 404
+curl -s -o /dev/null -w '%{http_code}\n'      "$PRODUCTION_API_URL/api/friends"        # must be 401
+```
+
+Run both after any change to `NODE_ENV`, the Render start command, or route
+mounting.
 
 **Migrations run in the Render start command**, not in CI. Same environment,
 same `DATABASE_URL`, no way to deploy while forgetting them. A migration step in
 a workflow would need production database credentials in GitHub for no gain.
 
-Setup this assumes: repository variable `PRODUCTION_API_URL` for the smoke test,
-and **auto-deploy ON** for both Render and Vercel — the opposite of what the old
-workflow required. If either is off, that half of the app silently stops
-releasing.
+**Auto-deploy must be ON for both, which is the opposite of what the old
+workflow required — and each has its own off-switch that looks nothing like the
+other's.** If either is off, that half of the app silently stops releasing while
+CI stays green, which is the same failure that killed `deploy.yml`.
+
+| Platform | Where the switch lives                                              |
+| -------- | ------------------------------------------------------------------- |
+| Render   | Service → Settings → Auto-Deploy (dashboard only; not in this repo) |
+| Vercel   | **`vercel.json`**, `git.deploymentEnabled.main` — checked in        |
+
+`vercel.json` held `"main": false` for exactly as long as `deploy.yml` existed,
+because the deploy hook was then the only sanctioned path to production. It is
+`true` now. The asymmetry is worth remembering: half of this configuration is in
+the repo and reviewable, half of it is a toggle in somebody's browser.
