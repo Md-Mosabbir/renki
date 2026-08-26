@@ -31,15 +31,32 @@ import { HttpError } from '../utils/http-error.js';
  */
 
 /**
- * How long a meetup code lives.
+ * How long ONE meetup symbol lives.
  *
- * Ninety seconds is the whole security model. A code is not a secret — it is
+ * The short window is the whole security model. A code is not a secret — it is
  * displayed on a screen in public, and nothing stops a screenshot reaching
  * someone across the city. What stops that being useful is that the window
  * closes before the message is read. Lengthen this and the feature stops
  * meaning "we met".
+ *
+ * This was 90, which was ALSO how long the screen showed a code — so the symbol
+ * on screen and the window an attacker had were one and the same. Those are now
+ * two different things. The client re-issues while the screen is open, so the
+ * display lasts as long as it ever did, while any single captured image dies in
+ * 30 seconds. Issuing already deleted the previous code
+ * (`uq_meetup_live_per_friendship`), so rotation needed no schema change.
+ *
+ * 30 and not less because of the iPhone path. `BarcodeDetector` is Chromium
+ * only, so on iOS the ONLY way to read the symbol is the native Camera app:
+ * point, wait for the notification, tap, let Safari open the link. That is
+ * comfortably 15-25 seconds, and a shorter code would make Renki unusable on
+ * every iPhone rather than merely inconvenient.
+ *
+ * Be honest about what rotation buys: it narrows the forwarding window roughly
+ * threefold. It does not close it. Closing it means binding a code to the
+ * scanner, which is a different feature.
  */
-export const MEETUP_CODE_TTL_SECONDS = 90;
+export const MEETUP_CODE_TTL_SECONDS = 30;
 
 /**
  * Trust stages allowed to hold friendships.

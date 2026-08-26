@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { googleSignin, getUserMe, addUserInfo } from '../controllers/auth.controller.js';
+import {
+  googleSignin,
+  getUserMe,
+  addUserInfo,
+  patchUserMe,
+} from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
@@ -24,5 +29,16 @@ router.get('/me', requireAuth, getUserMe);
 // endpoint changes is carried in it. The client replaces its cached user with
 // the one returned here.
 router.post('/gather-info', requireAuth, addUserInfo);
+
+// PATCH /api/auth/me
+// header: Authorization: Bearer <token>
+// body: { name?, phone? }        — anything else is a 400, not a silent ignore
+// response: { data: { user } }
+//
+// gather-info runs once and then refuses (409). Everything a student can still
+// change afterwards comes through here, and gender / date of birth / student ID
+// are not on that list — those are checked against an ID card, and changing one
+// means verifying again.
+router.patch('/me', requireAuth, patchUserMe);
 
 export default router;

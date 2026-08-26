@@ -105,6 +105,30 @@ export default function GroupsPage() {
     [refresh]
   );
 
+  const cancel = useCallback(
+    (groupId: string) => {
+      setRespondingTo(groupId);
+      api
+        .cancelRide(groupId)
+        .then(() => {
+          // The ride leaves this screen entirely — GET /api/groups returns only
+          // forming/matched/active — and reappears under History. Say so, or it
+          // reads as the card having been deleted.
+          toast.success('Ride cancelled — you can find it in History');
+          refresh();
+        })
+        .catch((err: unknown) => {
+          toast.error(
+            err instanceof ApiError ? err.message : 'Could not cancel the ride'
+          );
+        })
+        .finally(() => {
+          setRespondingTo(null);
+        });
+    },
+    [refresh]
+  );
+
   const byId = new Map(destinations.map((destination) => [destination.id, destination]));
   const viewerId = viewer?.id ?? '';
 
@@ -166,6 +190,7 @@ export default function GroupsPage() {
                 destination={byId.get(group.destinationLocationId)}
                 onRespond={respond}
                 onComplete={complete}
+                onCancel={cancel}
                 pending={respondingTo === group.id}
               />
             ))}
@@ -190,6 +215,7 @@ export default function GroupsPage() {
                 destination={byId.get(group.destinationLocationId)}
                 onRespond={respond}
                 onComplete={complete}
+                onCancel={cancel}
                 pending={respondingTo === group.id}
                 highlighted={group.id === highlight}
               />

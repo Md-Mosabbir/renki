@@ -1,0 +1,276 @@
+name: Deploy
+
+# Continuous DELIVERY, and the emphasis matters: Render and Vercel both already
+# deploy on a push to main through their own git integrations. What they do not
+# do is wait to find out whether the commit was any good — a red build ships
+# just as fast as a green one. This workflow exists to put the checks in front
+# of the release and to make the two services land in the right order.
+#
+# It replaces those integrations rather than joining them. Both must have
+# auto-deploy turned OFF, or every push deploys twice: once immediately and
+# ungated, once from here. See the setup notes at the bottom of this file.
+on:
+  push:
+    branches: [main]
+  # Re-run a deploy without pushing an empty commit — the usual reason is a
+  # failed deploy on the platform side rather than a bad commit.
+  workflow_dispatch:
+
+# One deploy at a time, and never cancelled. cancel-in-progress here would kill
+# a run between "backend deployed" and "frontend deployed", which is the one
+# state this pipeline exists to avoid being left in.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- #
+  # What did this push actually touch?
+  # ---------------------------------------------------------------- #
+  changes:
+    name: Detect changed workspaces
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      # Two commits is all the diff needs, and a shallow clone keeps this job
+      # under ten seconds.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # Plain git rather than a paths-filter action: this repo uses only
+      # first-party actions, and the logic is four lines.
+      - name: Diff against the previous commit
+        id: filter
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch has no "before", and neither does the very first
+          # commit on a branch. Deploying everything is the safe answer when we
+          # cannot tell — the alternative is silently skipping a release.
+          if ! changed=$(git diff --name-only HEAD^ HEAD 2>/dev/null); then
+            echo "no previous commit to diff against; deploying everything"
+            echo "backend=true"  >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed files:"
+          echo "$changed"
+
+          # The root manifests belong to both workspaces: a lockfile change can
+          # alter either one's dependency tree.
+          shared=$(echo "$changed" | grep -E '^(package\.json|package-lock\.json)$' || true)
+
+          backend=false
+          frontend=false
+          echo "$changed" | grep -q '^backend/'  && backend=true
+          echo "$changed" | grep -q '^frontend/' && frontend=true
+          [ -n "$shared" ] && backend=true && frontend=true
+
+          echo "backend=$backend"   >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------- #
+  # The gate. Same checks a PR runs, reused rather than copied.
+  # ---------------------------------------------------------------- #
+  verify-backend:
+    name: Backend checks
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: ./.github/workflows/backend-ci.yml
+
+  verify-frontend:
+    name: Frontend checks
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/frontend-ci.yml
+
+  # ---------------------------------------------------------------- #
+  # Backend first, always.
+  # ---------------------------------------------------------------- #
+  deploy-backend:
+    name: Deploy API to Render
+    runs-on: ubuntu-latest
+    needs: [changes, verify-backend, verify-frontend]
+    # `always()` because a skipped verify job reports 'skipped', not 'success',
+    # and a frontend-only commit legitimately skips the backend checks. The
+    # explicit clauses below are what actually gate: a FAILED check blocks.
+    if: >-
+      always()
+      && needs.changes.outputs.backend == 'true'
+      && needs.verify-backend.result == 'success'
+      && needs.verify-frontend.result != 'failure'
+    steps:
+      - name: Require the deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL is not set."
+            echo "Create a deploy hook on the Render service and add it as a"
+            echo "repository secret. Until then this workflow cannot deploy,"
+            echo "and it fails rather than silently doing nothing."
+            exit 1
+          fi
+
+      # Migrations are NOT run from here. They run in the service's own start
+      # command (`node backend/dist/db/migrate.js && node backend/dist/server.js`),
+      # which is the right place: same environment, same DATABASE_URL, and no
+      # way to deploy while forgetting them. A migration step in CI would need
+      # production credentials in GitHub for no gain.
+      - name: Trigger the deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" > /dev/null
+
+      # This is the step that makes the gate real. Polling for `status: ok`
+      # alone would pass instantly against the OLD instance, which is still
+      # healthily serving traffic — so a deploy that never landed would look
+      # identical to one that did. /api/health reports the commit it is running
+      # (env.gitCommit, from RENDER_GIT_COMMIT), so we wait for OUR sha.
+      - name: Wait for the new commit to be serving
+        env:
+          API: ${{ vars.PRODUCTION_API_URL }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${API:-}" ]; then
+            echo "::error::PRODUCTION_API_URL variable is not set."
+            exit 1
+          fi
+
+          # Render free instances cold-start, and a build takes a few minutes.
+          # 60 attempts x 10s = 10 minutes.
+          for i in $(seq 1 60); do
+            body=$(curl -fsS --max-time 10 "$API/api/health" 2>/dev/null || true)
+            running=$(echo "$body" | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p')
+
+            if [ "$running" = "$SHA" ]; then
+              echo "$body"
+              echo "::notice::API is serving ${SHA}"
+              exit 0
+            fi
+
+            echo "attempt $i: serving '${running:-nothing}', waiting for ${SHA}"
+            sleep 10
+          done
+
+          echo "::error::API never reported commit ${SHA}. Check the Render deploy log."
+          exit 1
+
+  # ---------------------------------------------------------------- #
+  # Frontend second, and only once the API it talks to is live.
+  # ---------------------------------------------------------------- #
+  deploy-frontend:
+    name: Deploy web to Vercel
+    runs-on: ubuntu-latest
+    needs: [changes, verify-frontend, deploy-backend]
+    # The ordering rule this whole workflow exists for: a frontend build that
+    # expects a field the deployed API does not return yet renders `undefined`
+    # to real users. So the frontend waits for the backend even though nothing
+    # technically couples them — and `!= 'failure'` lets a frontend-only commit
+    # through, where deploy-backend is legitimately skipped.
+    if: >-
+      always()
+      && needs.changes.outputs.frontend == 'true'
+      && needs.verify-frontend.result == 'success'
+      && needs.deploy-backend.result != 'failure'
+    steps:
+      - name: Require the deploy hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL is not set."
+            echo "Create a Deploy Hook on the Vercel project (Settings ->"
+            echo "Git -> Deploy Hooks, branch: main) and add it as a secret."
+            exit 1
+          fi
+
+      - name: Trigger the deploy
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" > /dev/null
+
+      # Vercel's hook returns as soon as the build is QUEUED, so there is no
+      # commit to compare against the way there is for the API. Waiting for the
+      # site to answer at all is the weaker check this can honestly make; the
+      # build itself was already proven green by verify-frontend.
+      - name: Wait for the site to answer
+        env:
+          WEB: ${{ vars.PRODUCTION_WEB_URL }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${WEB:-}" ]; then
+            echo "::error::PRODUCTION_WEB_URL variable is not set."
+            exit 1
+          fi
+
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 -o /dev/null "$WEB"; then
+              echo "::notice::Web is answering at ${WEB}"
+              exit 0
+            fi
+            echo "attempt $i: no answer yet"
+            sleep 10
+          done
+
+          echo "::error::${WEB} never answered. Check the Vercel deploy log."
+          exit 1
+
+  # ---------------------------------------------------------------- #
+  # Did the thing that actually matters survive the release?
+  # ---------------------------------------------------------------- #
+  smoke:
+    name: Post-deploy smoke test
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Public endpoints behave
+        env:
+          API: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          set -euo pipefail
+
+          echo "health:"
+          curl -fsS "$API/api/health"
+          echo ""
+
+          # Auth must be enforced. A 200 here would mean requireAuth stopped
+          # being mounted, which no unit test can catch.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$API/api/friends")
+          [ "$code" = "401" ] || { echo "::error::/api/friends returned $code, expected 401"; exit 1; }
+          echo "protected routes reject anonymous callers"
+
+          # The development auth bypass must not exist in production. This is
+          # the single most important line in this file: routes/index.ts mounts
+          # /api/dev only when NODE_ENV is not production, and a mistake there
+          # is a login-as-anyone endpoint on the public internet.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/api/dev/login")
+          [ "$code" = "404" ] || { echo "::error::/api/dev/login returned $code, expected 404"; exit 1; }
+          echo "dev auth bypass is absent"
+
+# --------------------------------------------------------------------- #
+# One-time setup this workflow assumes
+# --------------------------------------------------------------------- #
+#
+# Repository SECRETS (Settings -> Secrets and variables -> Actions -> Secrets):
+#   RENDER_DEPLOY_HOOK_URL   Render -> service -> Settings -> Deploy Hook
+#   VERCEL_DEPLOY_HOOK_URL   Vercel -> project -> Settings -> Git -> Deploy Hooks
+#
+# Repository VARIABLES (same page, Variables tab — these are not secret):
+#   PRODUCTION_API_URL       e.g. https://renki-api.onrender.com
+#   PRODUCTION_WEB_URL       the Vercel production domain
+#
+# And on the platforms themselves:
+#   Render  Settings -> Auto-Deploy -> OFF
+#   Vercel  Settings -> Git -> Ignored Build Step, or disconnect auto-deploy
+#           for production
+#
+# Leaving auto-deploy ON is not merely redundant: it is the ungated deploy this
+# workflow was written to remove, and it will win the race every time.

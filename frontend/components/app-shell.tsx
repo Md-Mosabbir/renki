@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Car, Users, UsersRound, User as UserIcon } from 'lucide-react';
+import { Car, History, Users, UsersRound, User as UserIcon } from 'lucide-react';
 
 import { Wordmark } from '@/components/brand/wordmark';
 
@@ -22,6 +22,7 @@ const NAV = [
   { href: '/rides', label: 'Rides', icon: Car },
   { href: '/friends', label: 'Friends', icon: Users },
   { href: '/groups', label: 'Groups', icon: UsersRound },
+  { href: '/history', label: 'History', icon: History },
   { href: '/profile', label: 'Profile', icon: UserIcon },
 ] as const;
 

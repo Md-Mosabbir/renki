@@ -12,6 +12,7 @@ import {
   swipe,
 } from '../services/ride-request.service.js';
 import type { RideRequestRow } from '../services/ride-request.service.js';
+import { HISTORY_PAGE_SIZE, listRideHistory } from '../services/ride-history.service.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**
@@ -192,4 +193,38 @@ export async function postSwipe(req: Request, res: Response): Promise<void> {
         : null,
     },
   });
+}
+
+/**
+ * GET /api/rides/history?limit=&offset=
+ *
+ * Rides that are over — the only reader of `ride_histories`, which has had a
+ * writer since the lifecycle landed and no reader until now.
+ *
+ * Paged rather than unbounded: this list only grows, and it is the one
+ * endpoint in the API whose result has no natural ceiling.
+ */
+export async function getHistory(req: Request, res: Response): Promise<void> {
+  const userId = requireUserId(req);
+
+  const page = await listRideHistory(
+    userId,
+    positiveNumber(req.query.limit) ?? HISTORY_PAGE_SIZE,
+    positiveNumber(req.query.offset) ?? 0
+  );
+
+  res.status(200).json({ data: page });
+}
+
+/**
+ * Read a non-negative integer out of a query string.
+ *
+ * Returns undefined for anything else — a junk `?limit=abc` falls back to the
+ * default rather than 400ing, because clamping a page size is not a decision
+ * worth failing a request over. The service clamps the upper bound.
+ */
+function positiveNumber(raw: unknown): number | undefined {
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
 }

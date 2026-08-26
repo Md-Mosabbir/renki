@@ -148,6 +148,17 @@ export interface GroupMember {
   profilePictureUrl: string | null;
   inviteStatus: 'pending' | 'accepted' | 'declined';
   isCreator: boolean;
+  /**
+   * This member's own drop-off, or null when it is the group's destination.
+   *
+   * A stranger match pairs two people going to nearby-but-different places —
+   * that is what the H3 ring is for — so the ride has one headline destination
+   * and up to two real drop-offs. Null means "same as the group's", which is
+   * every friends group, so a screen renders a per-person line only when there
+   * is genuinely something to say.
+   */
+  dropoffLocationId: string | null;
+  dropoffLabel: string | null;
 }
 
 export interface RideGroup {
@@ -312,4 +323,67 @@ export interface IncomingMatch {
   destinationLabel: string;
   departureTime: string;
   expiresAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Editing a profile
+ * ------------------------------------------------------------------ */
+
+/**
+ * What PATCH /api/auth/me accepts, and the whole of it.
+ *
+ * Everything else on `User` is locked once onboarding is done. Gender, date of
+ * birth and student ID are checked against an ID card, so changing one means
+ * verifying again rather than typing; university and email come from the
+ * northsouth.edu Google account. Sending any of them is a 400 naming the
+ * field, not a silent no-op — mirror that here rather than widening the type.
+ */
+export interface ProfileUpdate {
+  name?: string;
+  phone?: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Ride history
+ * ------------------------------------------------------------------ */
+
+export interface RideCompanion {
+  id: string;
+  name: string;
+  profilePictureUrl: string | null;
+  inviteStatus: 'pending' | 'accepted' | 'declined';
+  /** Where they got out, when it differed from the ride's destination. */
+  dropoffLabel: string | null;
+  /**
+   * Completed rides shared with this person, all-time. Display only — no
+   * permission in Renki is derived from it, and adding one would quietly
+   * reintroduce the "you rode together once, so now you may" unlock that the
+   * campus-origin rule deliberately does not have.
+   */
+  sharedRideCount: number;
+}
+
+/** A ride that is over. Cancelled ones are included; `status` says which. */
+export interface RideHistoryEntry {
+  id: string;
+  status: 'completed' | 'cancelled';
+  formation: 'friends' | 'matched';
+  startsAtCampus: boolean;
+  /** Full destination shape at both ends, so a card never renders a raw UUID. */
+  origin: Destination;
+  destination: Destination;
+  departureTime: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** Set when the ride was called off. */
+  cancelledAt: string | null;
+  /** Everyone else who was on it. I am not in this list. */
+  companions: RideCompanion[];
+}
+
+export interface RideHistoryPage {
+  rides: RideHistoryEntry[];
+  /** Completed rides only, ignoring the page — the number worth showing. */
+  totalCompleted: number;
+  hasMore: boolean;
 }

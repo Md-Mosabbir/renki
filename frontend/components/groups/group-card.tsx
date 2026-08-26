@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock, Flag, MapPin, QrCode, X } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export interface GroupCardProps {
   destination: Destination | undefined;
   onRespond: (groupId: string, accept: boolean) => void;
   onComplete: (groupId: string) => void;
+  onCancel: (groupId: string) => void;
   pending: boolean;
   highlighted?: boolean;
 }
@@ -43,6 +45,7 @@ export function GroupCard({
   destination,
   onRespond,
   onComplete,
+  onCancel,
   pending,
   highlighted = false,
 }: GroupCardProps) {
@@ -105,6 +108,24 @@ export function GroupCard({
         ))}
       </ul>
 
+      {/* Two people, two drop-offs. A stranger match pairs nearby-but-different
+          places — Dhanmondi 27 with Dhanmondi 32 — so the heading above shows
+          the ride's headline destination and this shows where each person
+          actually gets out. Rendered only when someone's differs, which is
+          never for a friends group. */}
+      {group.members.some((member) => member.dropoffLabel !== null) && (
+        <ul className="border-border mt-4 space-y-1 border-l-2 pl-3">
+          {group.members.map((member) => (
+            <li key={member.id} className="text-muted-foreground text-xs">
+              {member.name.split(/\s+/)[0]} gets out at{' '}
+              <span className="text-foreground font-medium">
+                {member.dropoffLabel ?? destination?.label ?? 'Unknown'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {group.status === 'forming' && group.pendingCount > 0 && !awaitingMe && (
         <p className="text-muted-foreground mt-4 text-xs">
           Waiting on {group.pendingCount} {group.pendingCount === 1 ? 'person' : 'people'}
@@ -116,13 +137,14 @@ export function GroupCard({
           button saying "we met" would mean nothing, which is the whole reason
           the code exists. */}
       {group.status === 'matched' && mine?.inviteStatus === 'accepted' && (
-        <div className="mt-5">
+        <div className="mt-5 flex items-center gap-3">
           <Button asChild size="sm" className="rounded-none">
             <Link href={`/groups/${group.id}/start`}>
               <QrCode className="size-3.5" />
               Start ride
             </Link>
           </Button>
+          <CancelButton groupId={group.id} pending={pending} onCancel={onCancel} />
         </div>
       )}
 
@@ -138,6 +160,7 @@ export function GroupCard({
             <Flag className="size-3.5" />
             Finish ride
           </Button>
+          <CancelButton groupId={group.id} pending={pending} onCancel={onCancel} />
           <span className="text-muted-foreground text-xs">
             Started {group.startedAt === null ? '' : formatTime(group.startedAt)}
           </span>
@@ -168,6 +191,59 @@ export function GroupCard({
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * Calling the ride off.
+ *
+ * Two taps, because there is no undo: cancelling ends the ride for the other
+ * person too, and on a stranger match it also spends both searches — neither
+ * side is put back in the deck, which is deliberate. Confirmation lives in
+ * local state rather than a dialog so the destructive answer is never the one
+ * under the finger where "Finish ride" just was.
+ */
+function CancelButton({
+  groupId,
+  pending,
+  onCancel,
+}: {
+  groupId: string;
+  pending: boolean;
+  onCancel: (groupId: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        onClick={() => {
+          setConfirming(true);
+        }}
+        className="text-muted-foreground rounded-none"
+      >
+        Cancel ride
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="destructive"
+      disabled={pending}
+      onClick={() => onCancel(groupId)}
+      onBlur={() => {
+        setConfirming(false);
+      }}
+      className="rounded-none"
+      autoFocus
+    >
+      Tap again to cancel
+    </Button>
   );
 }
 

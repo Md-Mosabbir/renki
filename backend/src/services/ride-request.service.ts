@@ -32,6 +32,21 @@ export const DECK_SIZE = 8;
 export const PROPOSAL_TTL_MINUTES = 30;
 
 /**
+ * How long after its departure time a request stays open.
+ *
+ * Not zero: students run late, and a card that vanishes from a deck at the
+ * stroke of the departure minute disappears mid-swipe for the person looking
+ * at it.
+ *
+ * Deliberately NOT `MATCH_WINDOW_MINUTES`, even though both are currently 30
+ * and 45 apart. They answer different questions — "how far apart may two
+ * departures be and still be one ride" versus "how long past my own departure
+ * am I still looking" — and sharing a constant means changing one silently
+ * changes the other.
+ */
+export const REQUEST_GRACE_MINUTES = 30;
+
+/**
  * Trust stages allowed to request a stranger ride.
  *
  * Stricter than friends, deliberately. A friend request is answered by a person
@@ -64,6 +79,57 @@ export interface DestinationInput {
  * Creating a request
  * ------------------------------------------------------------------ */
 
+/**
+ * Retire the caller's ride requests whose departure time has long passed.
+ *
+ * `ride_requests.status` has carried an 'expired' value since the first
+ * migration with nothing writing it, and the consequence was not cosmetic:
+ * `createRideRequest` refuses while any 'pending' or 'proposed' request
+ * exists, so a single search that never matched locked a student out of
+ * searching again permanently.
+ *
+ * A lazy sweep rather than a scheduler. Render's free tier gives a web service
+ * no cron, and a setInterval inside the process dies with the process and
+ * fires twice the moment there are two of them — whereas this runs on the
+ * paths that actually care, is idempotent, and joins whatever transaction the
+ * caller already has open.
+ *
+ * Scoped to one user on purpose. This is the half that has to WRITE, and a
+ * student may only write their own rows; the dead requests belonging to other
+ * people are excluded by a departure-time predicate in the queries that read
+ * them instead.
+ */
+export async function expireStaleRequests(
+  client: PoolClient,
+  userId: string
+): Promise<void> {
+  const { rows: expired } = await client.query<{ id: string }>(
+    `UPDATE ride_requests
+        SET status = 'expired'
+      WHERE user_id = $1
+        AND status IN ('pending', 'proposed')
+        AND ride_group_id IS NULL
+        AND departure_time < now() - make_interval(mins => $2)
+      RETURNING id`,
+    [userId, REQUEST_GRACE_MINUTES]
+  );
+
+  if (expired.length === 0) return;
+
+  // A proposal pointing at an expired request would otherwise keep the other
+  // person showing in GET /api/rides/incoming as someone whose yes is waiting
+  // on me — for a ride that can no longer be created. Same reasoning as
+  // createMatchedGroup declining every other proposal on a match.
+  const ids = expired.map((row) => row.id);
+  await client.query(
+    `UPDATE ride_match_proposals
+        SET response_a = CASE WHEN request_a_id = ANY($1) THEN 'declined' ELSE response_a END,
+            response_b = CASE WHEN request_b_id = ANY($1) THEN 'declined' ELSE response_b END
+      WHERE request_a_id = ANY($1) OR request_b_id = ANY($1)`,
+    [ids]
+  );
+}
+
 export async function createRideRequest(
   userId: string,
   destination: DestinationInput,
@@ -81,6 +147,11 @@ export async function createRideRequest(
     if (rider.gender !== 'male' && rider.gender !== 'female') {
       throw new HttpError(403, 'Confirm your gender before requesting a ride');
     }
+
+    // Before the check below, not after: a search whose departure time has long
+    // passed is what would otherwise refuse this one, and that refusal has no
+    // way out — there is no interface for cancelling a request you cannot see.
+    await expireStaleRequests(client, userId);
 
     // One open request at a time. Two would deal two decks and could match the
     // same person twice for the same trip, and there is no interface anywhere
@@ -123,13 +194,21 @@ export async function createRideRequest(
 
 /** The open request, if there is one. */
 export async function findOpenRequest(userId: string): Promise<RideRequestRow | null> {
-  const { rows } = await query<RideRequestRow>(
-    `SELECT * FROM ride_requests
-      WHERE user_id = $1 AND status IN ('pending', 'proposed')
-      ORDER BY created_at DESC LIMIT 1`,
-    [userId]
-  );
-  return rows[0] ?? null;
+  // A read that writes, which is worth the surprise: this is the call behind
+  // GET /api/rides/request, so it is where a student's own stale search is
+  // most likely to be noticed, and returning it as though it were live would
+  // show a dead deck.
+  return transaction(async (client) => {
+    await expireStaleRequests(client, userId);
+
+    const { rows } = await client.query<RideRequestRow>(
+      `SELECT * FROM ride_requests
+        WHERE user_id = $1 AND status IN ('pending', 'proposed')
+        ORDER BY created_at DESC LIMIT 1`,
+      [userId]
+    );
+    return rows[0] ?? null;
+  });
 }
 
 export async function cancelRideRequest(
@@ -164,6 +243,9 @@ export interface Deck {
  */
 export async function dealDeck(userId: string, requestId: string): Promise<Deck> {
   return transaction(async (client) => {
+    // Sweep before loading, so a deck is never dealt from a search that ran out
+    // while the tab was open — loadOwnRequest turns the swept row into a 410.
+    await expireStaleRequests(client, userId);
     const request = await loadOwnRequest(client, requestId, userId);
     const rider = await loadRider(client, userId);
 
@@ -183,6 +265,7 @@ export async function dealDeck(userId: string, requestId: string): Promise<Deck>
       destinationCell: cell ?? '',
       departureTime: request.departure_time,
       windowMinutes: MATCH_WINDOW_MINUTES,
+      graceMinutes: REQUEST_GRACE_MINUTES,
       limit: DECK_SIZE,
     });
 
@@ -270,8 +353,13 @@ export async function listIncomingMatches(userId: string): Promise<IncomingMatch
         AND r.status IN ('pending', 'proposed')
         AND r.ride_group_id IS NULL
         AND p.expires_at > now()
+        -- Their row, so it cannot be marked 'expired' from here. The predicate
+        -- is the read half of expireStaleRequests: their sweep will retire it
+        -- next time they open the app, and until then it must not appear as
+        -- someone waiting on an answer.
+        AND r.departure_time > now() - make_interval(mins => $2)
       ORDER BY r.departure_time`,
-    [userId]
+    [userId, REQUEST_GRACE_MINUTES]
   );
 
   return rows.map((row) => ({
@@ -327,6 +415,9 @@ export async function swipe(
   }
 
   return transaction(async (client) => {
+    // Same reason as dealDeck: a card can sit on screen longer than the search
+    // it was dealt from lives.
+    await expireStaleRequests(client, userId);
     const mine = await loadOwnRequest(client, requestId, userId);
 
     // Lock both requests in a stable order. Two people swiping yes on each
@@ -434,15 +525,13 @@ async function createMatchedGroup(
   }
 
   // Whoever has to leave first sets the ride — the alternative makes them late.
-  // The same person's destination is used, so both fields come from one rider
-  // rather than from whoever happened to swipe second.
+  // The same person's destination becomes the group's headline destination, so
+  // both fields come from one rider rather than from whoever swiped second.
   //
-  // KNOWN LIMITATION: `ride_groups` holds ONE destination, but a match is two
-  // people going to nearby-but-different places — that is exactly what the H3
-  // ring is for. Dhanmondi 27 and Dhanmondi 32 pair correctly and then the
-  // group records only one of them, so the second rider's actual drop-off is
-  // lost. A real fix is a drop-off per member; until then this at least picks
-  // deterministically instead of by swipe order.
+  // The OTHER rider's destination is no longer lost: each member's own
+  // drop-off goes on their invite row below. `ride_groups.destination_location_id`
+  // is what the ride is nominally for; `ride_group_invites.dropoff_location_id`
+  // is where each person actually gets out.
   const leader = mine.departure_time <= theirs.departure_time ? mine : theirs;
   const departure = leader.departure_time;
 
@@ -470,10 +559,22 @@ async function createMatchedGroup(
 
   // Both are already in — a match IS the acceptance. Nobody is invited to a
   // stranger ride; they swiped their way into it.
+  //
+  // Each row carries that rider's OWN destination as their drop-off. Written
+  // unconditionally rather than only when the two differ: toPublicRideGroup
+  // collapses a drop-off equal to the group's back to null, so storing the
+  // real answer here keeps the decision in one place and the row honest about
+  // what the person actually asked for.
   await client.query(
-    `INSERT INTO ride_group_invites (ride_group_id, user_id, direction, status, responded_at)
-     SELECT $1, unnest($2::uuid[]), 'requested', 'accepted', now()`,
-    [group.id, [mine.user_id, theirs.user_id]]
+    `INSERT INTO ride_group_invites
+       (ride_group_id, user_id, direction, status, responded_at, dropoff_location_id)
+     SELECT $1, member.user_id, 'requested', 'accepted', now(), member.dropoff
+       FROM unnest($2::uuid[], $3::uuid[]) AS member(user_id, dropoff)`,
+    [
+      group.id,
+      [mine.user_id, theirs.user_id],
+      [mine.destination_location_id, theirs.destination_location_id],
+    ]
   );
 
   await client.query(
@@ -496,8 +597,10 @@ async function createMatchedGroup(
 
   const { rows: members } = await client.query<GroupMemberRow>(
     `SELECT i.user_id, u.name, u.profile_picture_url,
-            i.status AS invite_status, i.direction, i.responded_at
+            i.status AS invite_status, i.direction, i.responded_at,
+            i.dropoff_location_id, drop.address AS dropoff_address
        FROM ride_group_invites i
+       LEFT JOIN locations drop ON drop.id = i.dropoff_location_id
        JOIN users u ON u.id = i.user_id
       WHERE i.ride_group_id = $1
       ORDER BY i.created_at`,
@@ -552,6 +655,12 @@ async function loadOwnRequest(
   // should be able to probe for.
   if (!request || request.user_id !== userId) {
     throw new HttpError(404, 'Ride search not found');
+  }
+  // 410 rather than 404: the search was real and is theirs, it has simply run
+  // out. Callers sweep first, so reaching this means the row was already dead
+  // before this request arrived.
+  if (request.status === 'expired') {
+    throw new HttpError(410, 'That ride search has expired — start a new one');
   }
   return request;
 }

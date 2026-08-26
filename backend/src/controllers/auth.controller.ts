@@ -1,8 +1,12 @@
 import type { Request, Response } from 'express';
 
-import { toPublicUser, validateProfileInput } from '../models/user.model.js';
+import {
+  toPublicUser,
+  validateProfileInput,
+  validateProfileUpdate,
+} from '../models/user.model.js';
 import { googleAuthenticate } from '../services/auth.service.js';
-import { completeProfile, findById } from '../services/user.service.js';
+import { completeProfile, findById, updateProfile } from '../services/user.service.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**
@@ -71,6 +75,35 @@ export async function addUserInfo(req: Request, res: Response): Promise<void> {
   // req.user.id, never a user id from the body — otherwise anyone with a valid
   // token could rewrite anyone else's profile.
   const row = await completeProfile(req.user.id, result.value);
+
+  res.status(200).json({ data: { user: toPublicUser(row) } });
+}
+
+/**
+ * PATCH /api/auth/me — edit the parts of a profile that are the student's own.
+ *
+ * Separate from /gather-info rather than a second call to it, because they are
+ * different operations with different rules: onboarding fills every field once
+ * and freezes the ones an ID card is checked against; this one changes a name
+ * or a phone number and can never touch those. Collapsing the two would mean
+ * the endpoint that edits a display name is also the endpoint that can rewrite
+ * a student ID.
+ *
+ * Which fields are editable is decided by validateProfileUpdate in the model,
+ * not here.
+ */
+export async function patchUserMe(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new HttpError(401, 'Unauthorized');
+  }
+
+  const result = validateProfileUpdate(req.body);
+  if (!result.valid) {
+    throw new HttpError(400, result.reason);
+  }
+
+  // req.user.id, never an id from the body.
+  const row = await updateProfile(req.user.id, result.value);
 
   res.status(200).json({ data: { user: toPublicUser(row) } });
 }

@@ -15,6 +15,7 @@ import { api, ApiError } from '@/lib/api';
 import type { Friendship, MeetupCode } from '@/lib/api';
 import { playConfirmChime } from '@/lib/chime';
 import { extractMeetupCode } from '@/lib/meetup-link';
+import { CODE_SESSION_SECONDS, useRotatingCode } from '@/lib/use-rotating-code';
 
 /**
  * The in-person confirmation.
@@ -28,6 +29,11 @@ import { extractMeetupCode } from '@/lib/meetup-link';
  * anything. Two and a half seconds is chosen to be under the time it takes to
  * look up from a screen — long enough not to hammer the API, short enough that
  * the reaction lands while both people are still looking.
+ *
+ * The symbol ROTATES while it is up: each code lives 30 seconds and the screen
+ * keeps producing them for 90, so a screenshot is stale long before the display
+ * is. lib/use-rotating-code.ts owns that and is shared with the ride-start
+ * screen, because these two features are the same act and must not drift.
  */
 
 const POLL_INTERVAL_MS = 2500;
@@ -37,10 +43,19 @@ type Mode = 'show' | 'scan';
 export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
   const [friendship, setFriendship] = useState<Friendship | null>(null);
   const [mode, setMode] = useState<Mode>('show');
-  const [meetup, setMeetup] = useState<MeetupCode | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [phase, setPhase] = useState<BlobPhase>('idle');
-  const [busy, setBusy] = useState(false);
+  /**
+   * Whether the student has asked to show a code at all. The screen opens
+   * resting — a code minted before anyone tapped anything would start the
+   * rotation clock while the phone is still in a pocket.
+   */
+  const [armed, setArmed] = useState(false);
+  /**
+   * Only the OUTCOME lives in state. Whether the blob is resting or arming is
+   * derived from whether a code is live, which with rotation changes several
+   * times a session and would otherwise need a setPhase in a timer.
+   */
+  const [resultPhase, setResultPhase] = useState<'idle' | 'verified' | 'failed'>('idle');
+  const [scanning, setScanning] = useState(false);
 
   const confirmed = friendship?.status === 'accepted';
 
@@ -52,7 +67,7 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
     setFriendship(next);
     if (celebratedRef.current) return;
     celebratedRef.current = true;
-    setPhase('verified');
+    setResultPhase('verified');
     playConfirmChime();
   }, []);
 
@@ -70,7 +85,7 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
           // state, but without the chime. A celebration for something that
           // happened yesterday is noise.
           celebratedRef.current = true;
-          setPhase('verified');
+          setResultPhase('verified');
         }
       })
       .catch((err: unknown) => {
@@ -84,31 +99,47 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
     };
   }, [friendshipId]);
 
-  /* ---- countdown ---- */
-  useEffect(() => {
-    if (!meetup || confirmed) return;
+  const issue = useCallback(() => api.issueMeetupCode(friendshipId), [friendshipId]);
+  const onIssueError = useCallback((err: unknown) => {
+    toast.error(err instanceof ApiError ? err.message : 'Could not create a code');
+  }, []);
 
-    // The clock is started where the code is issued, not here — see showCode().
-    // This effect only ticks it down.
-    const timer = setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          clearInterval(timer);
-          setPhase('idle');
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
+  const {
+    value: meetup,
+    secondsLeft,
+    sessionExpired,
+    busy: issuing,
+    restart,
+  } = useRotatingCode<MeetupCode>({
+    issue,
+    sessionSeconds: CODE_SESSION_SECONDS,
+    // Nothing is minted before the student asks, while the scanner is up, or
+    // once the friendship is settled.
+    enabled: armed && mode === 'show' && !confirmed,
+    onError: onIssueError,
+  });
 
-    return () => {
-      clearInterval(timer);
-    };
-  }, [meetup, confirmed]);
+  const busy = issuing || scanning;
+  const live = meetup !== null && secondsLeft > 0 && !sessionExpired;
+
+  /**
+   * Show a code, or replace the one on screen.
+   *
+   * The first tap arms the hook, which mints immediately. Later taps restart
+   * the session — which is what the student means by "New code" even while one
+   * is live: they have been standing there a while and want a fresh 90.
+   */
+  const showCode = useCallback(() => {
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    restart();
+  }, [armed, restart]);
 
   /* ---- poll while a code is live ---- */
   useEffect(() => {
-    if (!meetup || confirmed || secondsLeft === 0) return;
+    if (!live || confirmed) return;
 
     const poll = setInterval(() => {
       void api
@@ -124,24 +155,7 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
     return () => {
       clearInterval(poll);
     };
-  }, [meetup, confirmed, secondsLeft, friendshipId, celebrate]);
-
-  const showCode = useCallback(async () => {
-    setBusy(true);
-    try {
-      const issued = await api.issueMeetupCode(friendshipId);
-      setMeetup(issued);
-      // Counted down from ttlSeconds rather than from `expiresAt` minus the
-      // phone's clock. A device a few minutes out of sync would otherwise show
-      // a brand new code as already expired.
-      setSecondsLeft(issued.ttlSeconds);
-      setPhase('arming');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not create a code');
-    } finally {
-      setBusy(false);
-    }
-  }, [friendshipId]);
+  }, [live, confirmed, friendshipId, celebrate]);
 
   const handleScan = useCallback(
     async (scanned: string) => {
@@ -154,23 +168,35 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
         return;
       }
 
-      setBusy(true);
+      setScanning(true);
       try {
         celebrate(await api.scanMeetupCode(code));
       } catch (err) {
-        setPhase('failed');
+        setResultPhase('failed');
         toast.error(err instanceof ApiError ? err.message : 'That code did not work');
         // Back to resting after the rejection has been seen. Leaving the blob
         // red would make the next attempt start from a failure.
-        setTimeout(() => setPhase('idle'), 1800);
+        setTimeout(() => {
+          setResultPhase('idle');
+        }, 1800);
       } finally {
-        setBusy(false);
+        setScanning(false);
       }
     },
     [celebrate]
   );
 
   const name = friendship?.friend.name ?? 'them';
+
+  /**
+   * An outcome wins; otherwise the blob follows whether a code is up.
+   *
+   * Derived rather than stored because rotation makes 'arming' come and go
+   * several times per session, and driving that from a timer was how the old
+   * version ended up calling setPhase from inside an interval.
+   */
+  const phase: BlobPhase =
+    resultPhase !== 'idle' ? resultPhase : live && mode === 'show' ? 'arming' : 'idle';
 
   return (
     <Page className="max-w-md md:max-w-xl lg:max-w-2xl">
@@ -195,7 +221,7 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
 
           {/* The scannable plate, dead centre. Only while a code is live: an
               expired symbol that still looks scannable is worse than none. */}
-          {mode === 'show' && meetup && secondsLeft > 0 && !confirmed && (
+          {mode === 'show' && live && meetup !== null && !confirmed && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="bg-background border-border border p-2 shadow-lg">
                 <MeetupCodePlate code={meetup.code} size={150} />
@@ -211,11 +237,12 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
             name={name}
             meetup={meetup}
             secondsLeft={secondsLeft}
+            live={live}
+            armed={armed}
             busy={busy}
-            onShow={() => void showCode()}
+            onShow={showCode}
             onSwitch={() => {
               setMode('scan');
-              setPhase('idle');
             }}
           />
         ) : (
@@ -225,7 +252,6 @@ export function MeetupScreen({ friendshipId }: { friendshipId: string }) {
             onCode={(code) => void handleScan(code)}
             onSwitch={() => {
               setMode('show');
-              setPhase(meetup && secondsLeft > 0 ? 'arming' : 'idle');
             }}
           />
         )}
@@ -255,6 +281,8 @@ function ShowPanel({
   name,
   meetup,
   secondsLeft,
+  live,
+  armed,
   busy,
   onShow,
   onSwitch,
@@ -262,12 +290,17 @@ function ShowPanel({
   name: string;
   meetup: MeetupCode | null;
   secondsLeft: number;
+  /** A code is up right now. Decided by the caller, which owns the session. */
+  live: boolean;
+  /** The student has asked for codes at least once this visit. */
+  armed: boolean;
   busy: boolean;
   onShow: () => void;
   onSwitch: () => void;
 }) {
-  const live = meetup !== null && secondsLeft > 0;
-  const expired = meetup !== null && secondsLeft === 0;
+  // The session ran out, not merely this symbol — a symbol reaching zero
+  // mid-session is replaced without the student doing anything.
+  const expired = armed && !live;
 
   return (
     <div className="w-full space-y-6">
@@ -277,12 +310,12 @@ function ShowPanel({
         </h1>
         <p className="text-muted-foreground mx-auto max-w-sm text-sm">
           {live
-            ? `Hold your phone up so ${name} can scan it — with Renki, or with their phone's own camera app. The code dies in seconds, so it only works while you are standing together.`
+            ? `Hold your phone up so ${name} can scan it — with Renki, or with their phone's own camera app. The code changes every few seconds, so it only works while you are standing together.`
             : `Renki only counts a friendship once you have actually met. Show ${name} a code, or scan theirs.`}
         </p>
       </div>
 
-      {live && (
+      {live && meetup !== null && (
         <div className="space-y-3">
           {/* The code is NOT printed anywhere. It exists only as the QR symbol
               on screen, because a code a student can read is a code they can
@@ -295,7 +328,7 @@ function ShowPanel({
             />
           </div>
           <p className="text-muted-foreground text-xs tabular-nums">
-            expires in {secondsLeft}s
+            changes in {secondsLeft}s
           </p>
         </div>
       )}

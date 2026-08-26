@@ -1,5 +1,10 @@
 import { query } from '../db/pool.js';
-import type { GoogleProfile, ProfileInput, UserRow } from '../models/user.model.js';
+import type {
+  GoogleProfile,
+  ProfileInput,
+  ProfileUpdate,
+  UserRow,
+} from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**
@@ -95,8 +100,12 @@ export async function completeProfile(
               date_of_birth        = $5,
               phone                = $6,
               student_id           = $7,
-              profile_completed_at = COALESCE(profile_completed_at, now())
-        WHERE id = $1
+              profile_completed_at = now()
+        -- The onboarding form runs ONCE. Without this clause a second POST is
+        -- a full overwrite of student_id, gender and date_of_birth — the three
+        -- fields an ID card is checked against — through an endpoint whose
+        -- name suggests it only ever fills in blanks.
+        WHERE id = $1 AND profile_completed_at IS NULL
         RETURNING ${USER_COLUMNS}`,
       [
         userId,
@@ -114,9 +123,78 @@ export async function completeProfile(
 
   const user = rows[0];
   if (!user) {
-    // The JWT verified, so the id was real when the token was issued — the row
-    // has been deleted since.
-    throw new HttpError(404, 'User not found');
+    // Zero rows now means one of two different things, and they need different
+    // answers: the row is gone, or it is already onboarded.
+    const existing = await findById(userId);
+    if (!existing) {
+      // The JWT verified, so the id was real when the token was issued — the
+      // row has been deleted since.
+      throw new HttpError(404, 'User not found');
+    }
+    throw new HttpError(
+      409,
+      'Your profile is already set up. Use PATCH /api/auth/me to change your name or phone.'
+    );
+  }
+  return user;
+}
+
+/**
+ * Change the parts of a profile that are the student's own.
+ *
+ * The SET clause is assembled rather than fixed, because a patch of only
+ * `name` must not overwrite `phone` with whatever the client happened to
+ * omit. Every fragment appended below is a LITERAL in this file — column names
+ * cannot be parameterised, and none of these strings comes from the request.
+ * The values are all $n. `models/user.model.ts` decides which fields may
+ * appear at all; adding one here without adding it there does nothing.
+ */
+export async function updateProfile(
+  userId: string,
+  patch: ProfileUpdate
+): Promise<UserRow> {
+  const assignments: string[] = [];
+  const values: unknown[] = [userId];
+
+  if (patch.name !== undefined) {
+    values.push(patch.name);
+    assignments.push(`name = $${String(values.length)}`);
+  }
+  if (patch.phone !== undefined) {
+    values.push(patch.phone);
+    assignments.push(`phone = $${String(values.length)}`);
+  }
+
+  if (assignments.length === 0) {
+    // validateProfileUpdate already refuses an empty patch; this is the second
+    // half of that guarantee, so a future caller cannot produce `SET` with
+    // nothing after it.
+    throw new HttpError(400, 'Nothing to update');
+  }
+
+  let rows: UserRow[];
+  try {
+    ({ rows } = await query<UserRow>(
+      `UPDATE users
+          SET ${assignments.join(', ')}
+        -- Editing presupposes onboarding. Someone who has not filled the form
+        -- in has no name or phone to correct, and letting them PATCH would be
+        -- a second, laxer route into the same columns.
+        WHERE id = $1 AND profile_completed_at IS NOT NULL
+        RETURNING ${USER_COLUMNS}`,
+      values
+    ));
+  } catch (err) {
+    throw translateConstraintViolation(err);
+  }
+
+  const user = rows[0];
+  if (!user) {
+    const existing = await findById(userId);
+    if (!existing) {
+      throw new HttpError(404, 'User not found');
+    }
+    throw new HttpError(409, 'Finish setting up your account first');
   }
   return user;
 }

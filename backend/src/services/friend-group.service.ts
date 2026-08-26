@@ -390,8 +390,10 @@ async function loadGroupMembers(
 ): Promise<GroupMemberRow[]> {
   const sql = `
     SELECT i.user_id, u.name, u.profile_picture_url,
-           i.status AS invite_status, i.direction, i.responded_at
+           i.status AS invite_status, i.direction, i.responded_at,
+           i.dropoff_location_id, drop.address AS dropoff_address
       FROM ride_group_invites i
+      LEFT JOIN locations drop ON drop.id = i.dropoff_location_id
       JOIN users u ON u.id = i.user_id
      WHERE i.ride_group_id = $1
      ORDER BY i.created_at`;

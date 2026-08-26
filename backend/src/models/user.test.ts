@@ -5,6 +5,7 @@ import {
   normalisePhone,
   toPublicUser,
   validateProfileInput,
+  validateProfileUpdate,
 } from './user.model.js';
 import type { UserRow } from './user.model.js';
 
@@ -245,5 +246,78 @@ describe('toPublicUser', () => {
     // Dhaka is UTC+06, so a DATE read back as local midnight would render as
     // the PREVIOUS day through toISOString(). Formatting local parts avoids it.
     expect(toPublicUser(row()).dateOfBirth).toBe('2003-04-17');
+  });
+});
+
+/**
+ * Tests for the profile PATCH guard.
+ *
+ * The thing worth pinning here is what it REFUSES. `studentId`, `dateOfBirth`
+ * and `gender` are claims checked against an ID card; the first two make the
+ * card check meaningless if they can be retyped, and gender is the single
+ * filter deciding who a student rides with. A regression that lets one through
+ * would not break a test that only checks the happy path, so the locked fields
+ * get one case each.
+ */
+describe('validateProfileUpdate', () => {
+  it('accepts a name on its own and leaves phone absent', () => {
+    const result = validateProfileUpdate({ name: '  Nusrat Jahan  ' });
+    expect(result).toEqual({ valid: true, value: { name: 'Nusrat Jahan' } });
+  });
+
+  it('normalises a phone number the way the column stores it', () => {
+    const result = validateProfileUpdate({ phone: '01712345678' });
+    expect(result).toEqual({ valid: true, value: { phone: '+8801712345678' } });
+  });
+
+  it('accepts both together', () => {
+    const result = validateProfileUpdate({ name: 'Tanvir', phone: '+8801812345678' });
+    expect(result).toEqual({
+      valid: true,
+      value: { name: 'Tanvir', phone: '+8801812345678' },
+    });
+  });
+
+  it.each([
+    ['gender', 'male'],
+    ['dateOfBirth', '2003-04-17'],
+    ['studentId', '2211223'],
+    ['university', 'Somewhere Else'],
+    ['email', 'someone@northsouth.edu'],
+    ['trustStage', 'established'],
+  ])('refuses %s outright rather than ignoring it', (field, value) => {
+    const result = validateProfileUpdate({ name: 'Tanvir', [field]: value });
+    expect(result.valid).toBe(false);
+  });
+
+  it('refuses a locked field even when it is the only key', () => {
+    expect(validateProfileUpdate({ studentId: '2211223' }).valid).toBe(false);
+  });
+
+  it('refuses an empty patch — a 200 that changed nothing is a lie', () => {
+    expect(validateProfileUpdate({}).valid).toBe(false);
+  });
+
+  it('refuses a blank name rather than storing one', () => {
+    expect(validateProfileUpdate({ name: '   ' }).valid).toBe(false);
+  });
+
+  it('refuses a name over the column width', () => {
+    expect(validateProfileUpdate({ name: 'a'.repeat(101) }).valid).toBe(false);
+  });
+
+  it('refuses a phone that is not a Bangladeshi mobile', () => {
+    expect(validateProfileUpdate({ phone: '+15551234567' }).valid).toBe(false);
+  });
+
+  it('refuses null for a field rather than reading it as "no change"', () => {
+    expect(validateProfileUpdate({ phone: null }).valid).toBe(false);
+    expect(validateProfileUpdate({ name: null }).valid).toBe(false);
+  });
+
+  it('refuses a non-object body', () => {
+    expect(validateProfileUpdate(null).valid).toBe(false);
+    expect(validateProfileUpdate('name=x').valid).toBe(false);
+    expect(validateProfileUpdate([{ name: 'x' }]).valid).toBe(false);
   });
 });

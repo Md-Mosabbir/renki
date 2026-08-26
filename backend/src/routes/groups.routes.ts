@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import {
   getGroups,
+  postCancel,
   postComplete,
   postGroup,
   postGroupResponse,
@@ -35,5 +36,7 @@ router.post('/:id/respond', postGroupResponse);
 // POST /api/groups/:id/complete     end the ride
 router.post('/:id/start-code', postStartCode);
 router.post('/:id/complete', postComplete);
+// POST /api/groups/:id/cancel      call it off (forming, matched or active)
+router.post('/:id/cancel', postCancel);
 
 export default router;

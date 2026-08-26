@@ -13,7 +13,9 @@ import type {
   Friendship,
   MeetupCode,
   ProfileInput,
+  ProfileUpdate,
   RideGroup,
+  RideHistoryPage,
   RideRequest,
   RideStartCode,
   SwipeResult,
@@ -138,6 +140,22 @@ export const httpApi = {
       method: 'POST',
       auth: true,
       body: JSON.stringify(input),
+    });
+    return user;
+  },
+
+  /**
+   * Change a name or a phone number.
+   *
+   * PATCH, not a second POST to /auth/gather-info — that endpoint now answers
+   * 409 once a profile is complete, because it writes every field including
+   * the three an ID card is checked against.
+   */
+  async updateProfile(patch: ProfileUpdate): Promise<User> {
+    const { user } = await request<{ user: User }>('/auth/me', {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify(patch),
     });
     return user;
   },
@@ -269,6 +287,15 @@ export const httpApi = {
     return group;
   },
 
+  /** Call a ride off. Legal from forming, matched or active. */
+  async cancelRide(groupId: string): Promise<RideGroup> {
+    const { group } = await request<{ group: RideGroup }>(`/groups/${groupId}/cancel`, {
+      auth: true,
+      method: 'POST',
+    });
+    return group;
+  },
+
   /* ---------------- stranger matching ---------------- */
 
   async rideRequest(): Promise<RideRequest | null> {
@@ -305,6 +332,20 @@ export const httpApi = {
       auth: true,
     });
     return incoming;
+  },
+
+  /**
+   * Rides that are over, newest first.
+   *
+   * Paged, unlike every other list in this client: it is the one that only
+   * grows. `hasMore` comes from the server reading one row past the page.
+   */
+  async rideHistory(limit?: number, offset?: number): Promise<RideHistoryPage> {
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (offset !== undefined) params.set('offset', String(offset));
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    return request<RideHistoryPage>(`/rides/history${suffix}`, { auth: true });
   },
 
   async deck(requestId: string): Promise<Deck> {

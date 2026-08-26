@@ -50,6 +50,14 @@ export interface GroupMemberRow {
   invite_status: string;
   direction: string;
   responded_at: Date | null;
+  /**
+   * Where this person actually gets out, when it differs from the group's.
+   * NULL means "the group's destination" — the normal case for a friends
+   * group, where six people are going to one place.
+   */
+  dropoff_location_id?: string | null;
+  /** `locations.address` for the above, joined so a card never shows a UUID. */
+  dropoff_address?: string | null;
 }
 
 export interface PublicGroupMember {
@@ -60,6 +68,17 @@ export interface PublicGroupMember {
   inviteStatus: string;
   /** True for the person who created the group. */
   isCreator: boolean;
+  /**
+   * This member's own drop-off, or null when it is the group's destination.
+   *
+   * Null rather than a copy of the group's on purpose: it is what lets a
+   * screen decide whether there is anything worth saying. A friends group
+   * renders one destination; a stranger match where the two differ renders a
+   * line per person. Filling this in for everyone would make the two
+   * indistinguishable.
+   */
+  dropoffLocationId: string | null;
+  dropoffLabel: string | null;
 }
 
 export interface PublicRideGroup {
@@ -103,13 +122,41 @@ export function toPublicRideGroup(
     createdById: group.created_by_user_id,
     startedAt: group.started_at?.toISOString() ?? null,
     completedAt: group.completed_at?.toISOString() ?? null,
-    members: members.map((member) => ({
-      id: member.user_id,
-      name: member.name,
-      profilePictureUrl: member.profile_picture_url,
-      inviteStatus: member.invite_status,
-      isCreator: member.user_id === group.created_by_user_id,
-    })),
+    members: members.map((member) => {
+      // A drop-off equal to the group's destination is not an override, even
+      // when the column happens to hold it — collapsing both to null here
+      // means "differs from the group's" is decided in ONE place rather than
+      // by every screen comparing ids for itself.
+      const differs =
+        member.dropoff_location_id != null &&
+        member.dropoff_location_id !== group.destination_location_id;
+
+      return {
+        id: member.user_id,
+        name: member.name,
+        profilePictureUrl: member.profile_picture_url,
+        inviteStatus: member.invite_status,
+        isCreator: member.user_id === group.created_by_user_id,
+        dropoffLocationId: differs ? (member.dropoff_location_id ?? null) : null,
+        dropoffLabel: differs ? labelOf(member.dropoff_address) : null,
+      };
+    }),
     pendingCount: members.filter((member) => member.invite_status === 'pending').length,
   };
+}
+
+/**
+ * "Dhanmondi 27, Dhaka" -> "Dhanmondi 27".
+ *
+ * Matches `toPublicDestination` in location.service.ts and `labelOf` in
+ * candidate-query.ts. Three copies is two too many, but the alternative is a
+ * model importing a service; consolidating them is a separate change.
+ */
+function labelOf(address: string | null | undefined): string {
+  const parts = (address ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  if (parts.length === 0) return 'Unnamed';
+  return parts.length > 1 ? parts.slice(0, -1).join(', ') : (parts[0] ?? 'Unnamed');
 }

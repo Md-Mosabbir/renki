@@ -30,6 +30,14 @@ export interface MatchInput {
   departureTime: Date;
   /** How far either side of departureTime still counts as the same ride. */
   windowMinutes: number;
+  /**
+   * Minutes past its own departure time that another request is still dealt.
+   *
+   * Distinct from windowMinutes, which is relative to MY departure: if mine is
+   * also stale, that window happily pairs two dead searches with each other.
+   * This one is absolute, measured against now().
+   */
+  graceMinutes: number;
   limit: number;
 }
 

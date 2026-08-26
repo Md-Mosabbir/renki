@@ -20,8 +20,10 @@ export const api = {
   signIn: httpApi.signIn,
   /** GET /api/auth/me */
   me: httpApi.me,
-  /** POST /api/auth/gather-info */
+  /** POST /api/auth/gather-info — runs once, then answers 409. */
   completeProfile: httpApi.completeProfile,
+  /** PATCH /api/auth/me — name and phone only; everything else is locked. */
+  updateProfile: httpApi.updateProfile,
   /**
    * POST /api/verification/self — REAL endpoint, PLACEHOLDER behaviour. It
    * verifies with no evidence so the Verify button has something behind it, and
@@ -66,6 +68,8 @@ export const api = {
   scanStartCode: httpApi.scanStartCode,
   /** POST /api/groups/:id/complete */
   completeRide: httpApi.completeRide,
+  /** POST /api/groups/:id/cancel — the only writer of status 'cancelled'. */
+  cancelRide: httpApi.cancelRide,
 
   // ---- REAL — served by backend/src/routes/rides.routes.ts ----
   /** GET /api/rides/request — the one open search, or null. */
@@ -80,6 +84,8 @@ export const api = {
   deck: httpApi.deck,
   /** POST /api/rides/request/:id/swipe — a ride exists only on the second yes. */
   swipe: httpApi.swipe,
+  /** GET /api/rides/history — the only reader of `ride_histories`. Paged. */
+  rideHistory: httpApi.rideHistory,
 };
 
 const TOKEN_KEY = 'renki.token';

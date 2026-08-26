@@ -77,6 +77,12 @@ const CANDIDATE_SQL = `
      AND r.departure_time BETWEEN $3::timestamptz - make_interval(mins => $4)
                               AND $3::timestamptz + make_interval(mins => $4)
 
+     -- ...and not itself long past. The window above is relative to MY
+     -- departure, so if mine is also stale it happily pairs two dead searches.
+     -- These are other people's rows and cannot be marked 'expired' from here;
+     -- this is the read half of expireStaleRequests.
+     AND r.departure_time > now() - make_interval(mins => $9)
+
      -- Never propose someone either party has blocked, in either direction.
      -- A block is the one answer the product promises is permanent, and a
      -- matcher that ignores it would hand the blocked person a swipe card.
@@ -136,6 +142,7 @@ export async function findEligible(
     filter.cells,
     filter.locationId,
     input.limit,
+    input.graceMinutes,
   ]);
 
   return rows.map((row) => ({

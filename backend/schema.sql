@@ -194,6 +194,7 @@ CREATE TABLE public.ride_group_invites (
     status character varying(10) DEFAULT 'pending'::character varying NOT NULL,
     responded_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    dropoff_location_id uuid,
     CONSTRAINT chk_invite_responded_at CHECK ((((status)::text = 'pending'::text) = (responded_at IS NULL))),
     CONSTRAINT ride_group_invites_direction_check CHECK (((direction)::text = ANY ((ARRAY['invited'::character varying, 'requested'::character varying])::text[]))),
     CONSTRAINT ride_group_invites_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'declined'::character varying])::text[])))
@@ -218,7 +219,9 @@ CREATE TABLE public.ride_groups (
     origin_kind character varying(20) NOT NULL,
     started_at timestamp with time zone,
     completed_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
     CONSTRAINT chk_matched_capacity_is_two CHECK ((((formation)::text <> 'matched'::text) OR (capacity = 2))),
+    CONSTRAINT chk_ride_group_cancelled_at CHECK (((cancelled_at IS NULL) OR ((status)::text = 'cancelled'::text))),
     CONSTRAINT chk_ride_group_completed_at CHECK ((((status)::text = 'completed'::text) = (completed_at IS NOT NULL))),
     CONSTRAINT chk_ride_group_finish_after_start CHECK (((completed_at IS NULL) OR (started_at IS NULL) OR (completed_at >= started_at))),
     CONSTRAINT chk_ride_group_started_at CHECK ((((status)::text <> ALL ((ARRAY['active'::character varying, 'completed'::character varying])::text[])) OR (started_at IS NOT NULL))),
@@ -672,6 +675,13 @@ CREATE INDEX ride_feedback_user_idx ON public.ride_feedback USING btree (user_id
 
 
 --
+-- Name: ride_group_invites_dropoff_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ride_group_invites_dropoff_idx ON public.ride_group_invites USING btree (dropoff_location_id) WHERE (dropoff_location_id IS NOT NULL);
+
+
+--
 -- Name: ride_group_invites_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -901,6 +911,14 @@ ALTER TABLE ONLY public.ride_feedback
 
 ALTER TABLE ONLY public.ride_feedback
     ADD CONSTRAINT ride_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ride_group_invites ride_group_invites_dropoff_location_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ride_group_invites
+    ADD CONSTRAINT ride_group_invites_dropoff_location_id_fkey FOREIGN KEY (dropoff_location_id) REFERENCES public.locations(id);
 
 
 --

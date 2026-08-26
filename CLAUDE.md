@@ -195,10 +195,34 @@ bare code so older symbols keep redeeming.
 Keep the path short. Every character is more modules in the symbol, and a denser
 QR is a slower read off a glossy screen at arm's length.
 
-**A screenshot of the QR is still forwardable.** The 90-second expiry is the
-only thing limiting it today. Closing it properly means rotating the symbol
-every few seconds so a forwarded image is dead before it arrives; the schema
-already allows it, since issuing a code deletes the previous one.
+**The symbol rotates; the screen does not.** These used to be one number and
+that was the hole. A code lives `MEETUP_CODE_TTL_SECONDS` /
+`RIDE_START_CODE_TTL_SECONDS` — now **30 seconds** — while the screen keeps
+minting them for `CODE_SESSION_SECONDS` (90) in `lib/use-rotating-code.ts`. The
+display therefore lasts exactly as long as it always did, and any single
+captured image dies in a third of the time. No schema change was needed:
+issuing already deleted the previous code.
+
+**30 seconds is set by the iPhone, not by the threat model.** `BarcodeDetector`
+is Chromium-only, so on iOS the native Camera app is the _only_ way to read the
+symbol: point, wait for the notification, tap, let Safari open the link. That is
+15–25 seconds. A shorter code does not make Renki safer, it makes it unusable on
+every iPhone.
+
+**Say what this buys, honestly: roughly a threefold narrowing, not a fix.** A
+screenshot forwarded and read inside 30 seconds still works. Closing it properly
+means binding a code to the scanner's identity, which is a different feature.
+
+**One hook serves both features on purpose.** The friend meetup and the ride
+start are the same act — proving two people are in the same place — and the two
+must not drift into two sets of rules. `useRotatingCode` is the cheapest way to
+make drifting require effort. It also pauses on a hidden tab: a pocketed phone
+minting codes for 90 seconds is pure battery.
+
+**The session bound is client-side, and is not a security control.** A client
+that rotated forever would be doing what a student tapping "New code" forever
+can already do, and every code is still only valid for its own 30 seconds. The
+bound exists so a forgotten screen stops asking.
 
 ## Ride direction
 
@@ -300,11 +324,30 @@ swiping simultaneously serialise instead of creating two groups — and declines
 every other proposal touching either request, because a card for someone already
 matched is a card that cannot be honoured.
 
-**Known gap: a group has ONE destination but a match has two.** Pairing
-Dhanmondi 27 with Dhanmondi 32 is the feature working; recording only one of
-them loses the second rider's real drop-off. The earlier departure's rider sets
-both fields so the choice is at least deterministic. A drop-off per member is
-the actual fix.
+**A group has one headline destination; each member has their own drop-off.**
+Pairing Dhanmondi 27 with Dhanmondi 32 is the H3 ring working exactly as
+intended, and `ride_groups.destination_location_id` can only hold one of them.
+`ride_group_invites.dropoff_location_id` (migration 23) holds the rest.
+
+It lives on the invite row rather than in a new table because an invite already
+_is_ "this person, on this ride", one per member and unique by
+`uq_group_invite`. Where they get out is an attribute of that.
+
+**NULL means "the group's destination", and that is load-bearing.** A friends
+group of six going to one place must not write the same id six times, and a NOT
+NULL column would have forced a backfill answer for every existing row. It is
+also what lets a screen decide whether there is anything worth saying: a
+per-person line renders only when someone's drop-off genuinely differs.
+
+**"Differs from the group's" is decided in ONE place.** `toPublicRideGroup`
+collapses a drop-off equal to the group's back to `null`, so `createMatchedGroup`
+can write each rider's real answer unconditionally and no screen ever compares
+ids for itself. Four member queries feed this — in `friend-group.service`,
+`ride-lifecycle.service`, `ride-request.service` and `ride-history.service` — and
+all four must carry the `LEFT JOIN locations`.
+
+**Known gap: stop ORDER is still unsolved.** Who gets dropped first is a routing
+problem, not a data one, and nothing records it.
 
 **Known gap: the UI can only pick the five seeded landmarks.** `POST
 /api/rides/request` accepts arbitrary coordinates and `resolveDestination`
@@ -313,10 +356,36 @@ The landmarks are kilometres apart, so through the UI the H3 ring never finds
 anything the k=0 cell would not — proximity matching is reachable from the API
 and not yet from the browser. A pin-drop or map picker is what closes it.
 
-**Known gap: nothing expires a ride request.** `ride_requests.status` has an
-`'expired'` value and no code ever writes it, so a `pending` request whose
-departure time has passed stays open forever and blocks its owner from making a
-new one.
+**A stale request is retired lazily, on the paths that care.** `'expired'` sat
+in `chk_ride_requests_status` with no writer, and the consequence was not
+cosmetic: `createRideRequest` refuses while any `pending`/`proposed` request
+exists, so one search that never matched locked a student out of searching
+**permanently**.
+
+`expireStaleRequests(client, userId)` runs at the top of `createRideRequest`,
+`findOpenRequest`, `dealDeck` and `swipe`. A lazy sweep and not a scheduler:
+Render's free tier gives a web service no cron, and a `setInterval` in-process
+dies with the process and fires twice the moment there are two of them.
+
+**Two mechanisms, because one cannot do both jobs.** The sweep WRITES, and a
+student may only write their own rows. Other people's stale requests are
+excluded by a departure-time predicate in `candidate-query.ts` and
+`listIncomingMatches` instead. Remove either half and dead cards come back.
+
+**`REQUEST_GRACE_MINUTES` is deliberately not `MATCH_WINDOW_MINUTES`.** Students
+run late, so expiring at the stroke of the departure minute would delete a card
+mid-swipe. The two constants answer different questions — "how far apart may two
+departures be and still be one ride" versus "how long past my own departure am I
+still looking" — and sharing one would mean changing either silently changes
+both.
+
+**The sweep also declines orphaned proposals.** A proposal pointing at an
+expired request would otherwise keep its owner showing in
+`GET /api/rides/incoming` as someone whose yes is waiting, for a ride that can
+no longer be created.
+
+`loadOwnRequest` answers **410**, not 404, for an expired request: it was real
+and it is theirs, it has simply run out.
 
 ## Ride lifecycle
 
@@ -358,6 +427,91 @@ ride-direction section before doing it.
 `chk_ride_group_started_at` says active-or-completed implies a start time, not
 the reverse, because `cancelled` is reachable from `active` — a cancelled ride
 is allowed to carry the moment it started.
+
+## Profiles
+
+**`POST /api/auth/gather-info` runs exactly once.** It writes every profile
+column, so a second call was a full overwrite of `student_id`, `gender` and
+`date_of_birth` — the three fields an ID card is checked against — through an
+endpoint whose name suggests it only fills in blanks. The guard is
+`WHERE id = $1 AND profile_completed_at IS NULL` in `completeProfile`; zero rows
+then means either "deleted" or "already onboarded", which is why it re-reads to
+pick between 404 and 409.
+
+**`PATCH /api/auth/me` accepts `name` and `phone`, and nothing else ever.**
+`validateProfileUpdate` in `user.model.ts` decides that, not the service. The
+locked fields are each locked for their own reason:
+
+| Field                      | Why it cannot be edited                                                                                                                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `studentId`, `dateOfBirth` | Claims checked against an ID card. Retyping one makes the card check decorative; changing them means verifying again.                                                                                                                                            |
+| `gender`                   | The single filter deciding who a student is matched with, befriends and shares a car with. It is checked at request and again at redemption _because_ a profile can change in between — an endpoint that flips it on demand makes that double check a formality. |
+| `university`, `email`      | Come from the Google account and the `hd` domain rule. Not the student's to assert.                                                                                                                                                                              |
+
+A locked field in the body is a **400 naming it**, not a silent ignore. Dropping
+it quietly means the request succeeds, the response shows the old value, and the
+student concludes the app is broken.
+
+## Ride history
+
+**`GET /api/rides/history` is the only reader of `ride_histories`.** The table
+had a writer from the moment the lifecycle landed and no reader until this
+endpoint, which is the whole reason it exists: "you have ridden with Tanvir 3
+times" on a card. The rule from the ride-direction section still stands and is
+easy to erode from here — **no permission may ever be derived from it.** Riding
+once is a weaker bar than the friend meetup.
+
+**A finished ride used to vanish from the app entirely.** `listGroupsForUser`
+filters to `forming/matched/active`, so completing a ride deleted it from the
+student's own view of their week. History is the other half of that filter and
+the two must stay complementary — widening one without narrowing the other
+makes a ride appear on two screens at once.
+
+**Cancelled rides are in history too**, and `status` says which. A list that
+drops them cannot explain where an evening went.
+
+Paged (`?limit=&offset=`, max 50) because it is the one list in the API with no
+ceiling, and `hasMore` comes from selecting one row past the page rather than a
+second `COUNT` over the same join. Two queries total, not one per ride —
+`listGroupsForUser` is N+1 on purpose because a student is in a handful of
+_active_ groups, and that reasoning does not survive a list that only grows.
+
+## Cancelling a ride
+
+**`POST /api/groups/:id/cancel` is the only writer of `status = 'cancelled'`.**
+That value sat in `chk_ride_groups_status` from the first migration with nothing
+writing it, which made a matched stranger ride a one-way door.
+
+Any accepted member may cancel alone, and from `forming`, `matched` **or**
+`active`. Active is deliberate: `chk_ride_group_started_at` is written as an
+implication rather than an equivalence precisely so a cancelled row may keep the
+moment it started. Plans fall apart after the scan, and forcing that to be
+recorded as `completed` would put a ride that never happened into
+`ride_histories`.
+
+**Cancelling spends both searches — it does not reopen them.** The two
+`ride_requests` go to `'cancelled'`, not back to `'pending'`. Re-dealing a card
+for someone whose ride was just called off would put them straight back in front
+of the person who called it off. Making a fresh request is the deliberate act
+that says "still going".
+
+**`cancelled_at` exists because history sorts by when a ride CONCLUDED.**
+`completed_at` is tied to `status = 'completed'` by a CHECK, so a cancelled ride
+had no such moment and the history query fell back to `departure_time` — which,
+for a ride called off _before_ it was due to leave, is in the **future**. Every
+cancellation floated above rides that had genuinely just finished. The ordering
+key is now `COALESCE(completed_at, cancelled_at, departure_time)`.
+
+The CHECK is an implication in one direction only: a timestamp means the ride
+was cancelled, but a cancelled ride is not required to carry one. Writing it as
+an equivalence would claim the migration-24 backfill knew moments it can only
+approximate.
+
+**A live start code is DELETEd, not marked consumed.** Nobody scanned it, and
+claiming they did would be a lie in the audit trail — but the practical reason
+is that `chk_qr_not_self` forbids `consumed_by_user_id = issued_by_user_id`, so
+"mark consumed" crashes whenever the person cancelling is the person who minted
+the code, which is the common case.
 
 ## Architecture
 
@@ -421,19 +575,64 @@ city belongs in the name.
 those files from the registry, so `.prettierignore` excludes them — formatting
 them would make every future `add` produce a spurious diff.
 
-## CI
+## CI / CD
 
-Two workflows, one per workspace, each path-filtered so a change to one never
-pays for the other's run. Both trigger on PRs into `main` and pushes to `main`;
-pushes to feature branches do **not** trigger either. CI only; no deploy step.
+Three workflows. Two run the checks, one releases.
 
-| Workflow          | Filter        | Jobs                                      |
-| ----------------- | ------------- | ----------------------------------------- |
-| `backend-ci.yml`  | `backend/**`  | lint, typecheck, build, test; Docker boot |
-| `frontend-ci.yml` | `frontend/**` | lint, typecheck, build; Docker boot       |
+| Workflow          | Triggers                        | Jobs                                      |
+| ----------------- | ------------------------------- | ----------------------------------------- |
+| `backend-ci.yml`  | PR into `main`, `workflow_call` | lint, typecheck, build, test; Docker boot |
+| `frontend-ci.yml` | PR into `main`, `workflow_call` | lint, typecheck, build; Docker boot       |
+| `deploy.yml`      | push to `main`                  | detect changes → verify → deploy → smoke  |
 
-Both also watch the root `package.json` and `package-lock.json`, and both run
-the root `format:check`, which covers every workspace.
+The two CI workflows are path-filtered so a change to one workspace never pays
+for the other's run. Both also watch the root `package.json` and
+`package-lock.json`, and both run the root `format:check`, which covers every
+workspace. Keep `frontend/` work out of the backend workflow's path filter and
+vice versa — that separation is what keeps the monorepo's CI cheap.
 
-Keep `frontend/` work out of the backend workflow's path filter and vice versa —
-that separation is what keeps the monorepo's CI cheap.
+**Neither CI workflow triggers on a push to `main` any more.** `deploy.yml`
+owns main: it diffs the push, calls the CI workflows for the workspaces that
+actually changed, and then releases. Adding a `push: main` trigger back would
+run every check twice per merge.
+
+**The point of `deploy.yml` is the gate, not the deployment.** Render and Vercel
+both deploy on a git push by themselves — what they will not do is wait to find
+out whether the commit was any good. A red build shipped exactly as fast as a
+green one. So `deploy.yml` **replaces** those integrations, and both must have
+auto-deploy turned **OFF**. Leaving one on is not redundancy: it is the ungated
+deploy this exists to remove, and it wins the race every time.
+
+**Backend before frontend, always.** A frontend build that expects a field the
+deployed API does not return yet renders `undefined` to real users. Nothing
+technically couples the two deploys, so the ordering is enforced by `needs:`.
+
+**`always()` with explicit result checks, not bare `needs:`.** A skipped job
+reports `skipped`, not `success`, and a frontend-only commit legitimately skips
+the backend checks — so a plain `needs:` would block every single-workspace
+release. The `!= 'failure'` clauses are what actually gate.
+
+**`/api/health` reports the commit it is running, and that is a deploy gate not
+a diagnostic.** Polling for `status: ok` after triggering a deploy passes
+immediately — against the OLD instance, which is still healthily serving
+traffic. A deploy that never landed would be indistinguishable from one that
+did. `env.gitCommit` comes from `RENDER_GIT_COMMIT`, and the workflow waits for
+its own SHA. Vercel gets the weaker "does it answer" check, because its deploy
+hook returns as soon as the build is queued and there is no equivalent to
+compare against.
+
+**Migrations run in the Render start command, not in CI.** Same environment,
+same `DATABASE_URL`, and no way to deploy while forgetting them. A migration
+step in the workflow would need production database credentials in GitHub for
+no gain.
+
+**The smoke test's most important line is the one asserting `/api/dev/login`
+returns 404.** `routes/index.ts` mounts `/api/dev` only when `NODE_ENV` is not
+production; a mistake there is a log-in-as-anyone endpoint on the public
+internet, and no unit test can catch it because the mount is environmental.
+
+Setup this assumes — secrets `RENDER_DEPLOY_HOOK_URL` and
+`VERCEL_DEPLOY_HOOK_URL`, variables `PRODUCTION_API_URL` and
+`PRODUCTION_WEB_URL` — is documented at the bottom of `deploy.yml`. A missing
+one fails the run with a message saying which, rather than deploying nothing
+quietly.

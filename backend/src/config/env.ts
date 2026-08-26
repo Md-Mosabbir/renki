@@ -60,4 +60,16 @@ export const env = {
 
   faceApiUrl: process.env.FACE_API_URL ?? '',
   faceApiSecret: process.env.FACE_API_SECRET ?? '',
+
+  /**
+   * The commit this instance is running, surfaced on /api/health.
+   *
+   * Render sets RENDER_GIT_COMMIT on every deploy; nothing sets it locally, and
+   * 'unknown' is the honest answer there. It exists so the deploy workflow can
+   * tell "the service is healthy" from "the service is running MY commit" —
+   * without it, polling health after triggering a deploy passes instantly
+   * against the OLD version still serving traffic, and a failed deploy looks
+   * like a successful one.
+   */
+  gitCommit: process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? 'unknown',
 } as const;

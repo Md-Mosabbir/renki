@@ -7,6 +7,7 @@ import {
   respondToGroupInvite,
 } from '../services/friend-group.service.js';
 import {
+  cancelRide,
   completeRide,
   issueStartCode,
   redeemStartCode,
@@ -147,5 +148,23 @@ export async function postComplete(req: Request, res: Response): Promise<void> {
   }
 
   const { group, members } = await completeRide(userId, groupId);
+  res.status(200).json({ data: { group: toPublicRideGroup(group, members) } });
+}
+
+/**
+ * POST /api/groups/:id/cancel — call the ride off.
+ *
+ * Any accepted member, no confirmation from the other side, and legal from
+ * forming, matched or active. Who may do it and from where is the service's
+ * decision; see cancelRide.
+ */
+export async function postCancel(req: Request, res: Response): Promise<void> {
+  const userId = requireUserId(req);
+  const groupId = req.params.id;
+  if (typeof groupId !== 'string' || groupId === '') {
+    throw new HttpError(400, 'id is required');
+  }
+
+  const { group, members } = await cancelRide(userId, groupId);
   res.status(200).json({ data: { group: toPublicRideGroup(group, members) } });
 }

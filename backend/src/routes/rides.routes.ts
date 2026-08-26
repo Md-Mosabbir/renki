@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   deleteRideRequest,
   getDeck,
+  getHistory,
   getIncoming,
   getOpenRequest,
   postRideRequest,
@@ -25,6 +26,10 @@ router.use(requireAuth);
 // GET /api/rides/incoming — who has already swiped yes on me.
 // Declared before /request/:id so it cannot be read as a request id.
 router.get('/incoming', getIncoming);
+
+// GET /api/rides/history?limit=&offset=  — rides that are over.
+// Also before /request/:id, for the same reason.
+router.get('/history', getHistory);
 
 router.get('/request', getOpenRequest);
 router.post('/request', postRideRequest);

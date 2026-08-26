@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, QrCode, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
-import type { RideStartCode } from '@/lib/api';
+import { CODE_SESSION_SECONDS, useRotatingCode } from '@/lib/use-rotating-code';
 import { buildRideStartLink, extractMeetupCode } from '@/lib/meetup-link';
 import { AppShell, Page } from '@/components/app-shell';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,11 @@ import { playConfirmChime } from '@/lib/chime';
  * The code is never rendered as text, here or in an aria-label, for the same
  * reason it is not on the meetup screen: a code a student can read is a code
  * they can send to someone who is not there.
+ *
+ * The symbol also ROTATES. Each one lives 30 seconds while the screen keeps
+ * showing codes for 90, so a screenshot is stale long before the display is —
+ * see lib/use-rotating-code.ts, which the friend meetup shares so the two
+ * cannot drift.
  */
 
 type Mode = 'show' | 'scan';
@@ -34,49 +39,30 @@ type Mode = 'show' | 'scan';
 export function StartRideScreen({ groupId }: { groupId: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('show');
-  const [start, setStart] = useState<RideStartCode | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [started, setStarted] = useState(false);
 
-  // React runs effects twice in development. Without this the first code would
-  // be issued, immediately replaced by a second, and the countdown would jump.
-  const issuedRef = useRef(false);
+  const issue = useCallback(() => api.issueStartCode(groupId), [groupId]);
+  const onIssueError = useCallback((err: unknown) => {
+    toast.error(err instanceof ApiError ? err.message : 'Could not get a code');
+  }, []);
 
-  const issue = useCallback(() => {
-    setBusy(true);
-    api
-      .issueStartCode(groupId)
-      .then((code) => {
-        setStart(code);
-        setSecondsLeft(code.ttlSeconds);
-      })
-      .catch((err: unknown) => {
-        toast.error(err instanceof ApiError ? err.message : 'Could not get a code');
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  }, [groupId]);
+  const {
+    value: start,
+    secondsLeft,
+    sessionExpired,
+    busy: issuing,
+    restart,
+  } = useRotatingCode({
+    issue,
+    sessionSeconds: CODE_SESSION_SECONDS,
+    // Nothing is minted while the scanner is up: the student is reading the
+    // other person's symbol, not showing their own.
+    enabled: mode === 'show' && !started,
+    onError: onIssueError,
+  });
 
-  useEffect(() => {
-    if (issuedRef.current || mode !== 'show') return;
-    issuedRef.current = true;
-    issue();
-  }, [issue, mode]);
-
-  // Counts down from when the response arrived rather than from expiresAt, so a
-  // phone clock that disagrees with the server does not show a dead code as
-  // live or a live one as dead.
-  useEffect(() => {
-    if (secondsLeft <= 0) return;
-    const timer = setInterval(() => {
-      setSecondsLeft((current) => (current <= 1 ? 0 : current - 1));
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [secondsLeft]);
+  const busy = issuing || scanning;
 
   const onScanned = useCallback(
     (scanned: string) => {
@@ -86,7 +72,7 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
         return;
       }
 
-      setBusy(true);
+      setScanning(true);
       api
         .scanStartCode(code)
         .then(() => {
@@ -99,13 +85,16 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
           toast.error(err instanceof ApiError ? err.message : 'Could not start the ride');
         })
         .finally(() => {
-          setBusy(false);
+          setScanning(false);
         });
     },
     [router]
   );
 
-  const expired = start !== null && secondsLeft <= 0;
+  // Only the SESSION ending is a dead end. A symbol reaching zero mid-session
+  // is replaced automatically, so treating that as expiry would flash a failure
+  // state once every 30 seconds.
+  const expired = sessionExpired;
 
   return (
     <AppShell>
@@ -146,13 +135,16 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
               {start === null
                 ? 'Getting a code…'
                 : expired
-                  ? 'That code expired.'
-                  : `Expires in ${String(secondsLeft)}s`}
+                  ? 'Still waiting? Get a fresh code.'
+                  : // The number counts the SYMBOL, not the session. It is
+                    // what the other person is racing, and it is the honest
+                    // thing to show next to a code that visibly changes.
+                    `This code changes in ${String(secondsLeft)}s`}
             </p>
 
             {expired && (
               <Button
-                onClick={issue}
+                onClick={restart}
                 disabled={busy}
                 className="mx-auto mt-4 flex rounded-none"
               >
@@ -166,8 +158,9 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
             )}
 
             <p className="text-muted-foreground mx-auto mt-8 max-w-sm text-center text-xs leading-relaxed">
-              On an iPhone, the other person can point the built-in Camera app at this and
-              tap the link — no in-app scanner needed.
+              The code changes every few seconds, so a screenshot goes stale fast. On an
+              iPhone, the other person can point the built-in Camera app at this and tap
+              the link — no in-app scanner needed.
             </p>
           </>
         ) : (

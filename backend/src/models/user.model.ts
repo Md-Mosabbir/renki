@@ -232,3 +232,116 @@ function validateDateOfBirth(value: string): ValidationResult<string> {
 
   return { valid: true, value };
 }
+
+/* ------------------------------------------------------------------ *
+ * Editing a profile after onboarding
+ * ------------------------------------------------------------------ */
+
+/**
+ * The fields a student may change once their profile is complete.
+ *
+ * Deliberately short. Everything NOT in here is locked, and each for its own
+ * reason rather than by omission:
+ *
+ *   - `studentId` and `dateOfBirth` are claims made against an ID card. Letting
+ *     them be retyped would make the card check meaningless — the whole point
+ *     of verification is that the row and the card agree, and re-verifying
+ *     means another photo and another review.
+ *   - `gender` is the single filter that decides who a student can be matched
+ *     with, be friends with and share a car with. It is checked at request and
+ *     again at redemption precisely because a profile can change in between;
+ *     an endpoint that flips it on demand turns that double check into a
+ *     formality.
+ *   - `university` and `email` come from the Google account and the @-domain
+ *     rule. They are not the student's to assert.
+ *
+ * `name` and `phone` are the two that are genuinely the student's own: a name
+ * people recognise, and a number that still reaches them.
+ */
+export interface ProfileUpdate {
+  name?: string;
+  phone?: string;
+}
+
+/**
+ * Fields a client might send that this endpoint refuses rather than ignores.
+ *
+ * Silently dropping them is the worse behaviour: the request succeeds, the
+ * response shows the old value, and the student concludes the app is broken.
+ * A 400 naming the field says what happened.
+ */
+const LOCKED_FIELDS = [
+  'gender',
+  'dateOfBirth',
+  'studentId',
+  'university',
+  'email',
+  'trustStage',
+  'id',
+] as const;
+
+const LOCKED_REASONS: Record<string, string> = {
+  gender:
+    'Gender is fixed once your profile is set up — it decides who you can ride with',
+  dateOfBirth: 'Date of birth is taken from your student ID and cannot be edited',
+  studentId: 'Student ID is taken from your student ID card and cannot be edited',
+  university: 'University comes from your northsouth.edu account',
+  email: 'Email comes from your Google account',
+  trustStage: 'Verification status is not something an account can set for itself',
+  id: 'id cannot be changed',
+};
+
+/**
+ * Validate a profile patch.
+ *
+ * Absent means "leave alone"; present means "set to this". `null` is not
+ * accepted for either field — clearing a phone number is not a thing the
+ * product wants, and treating null as "no change" would make an accidental
+ * null indistinguishable from an omission.
+ */
+export function validateProfileUpdate(body: unknown): ValidationResult<ProfileUpdate> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { valid: false, reason: 'Request body must be an object' };
+  }
+
+  const raw = body as Record<string, unknown>;
+
+  for (const field of LOCKED_FIELDS) {
+    if (field in raw) {
+      return {
+        valid: false,
+        reason: LOCKED_REASONS[field] ?? `${field} cannot be changed`,
+      };
+    }
+  }
+
+  const patch: ProfileUpdate = {};
+
+  if ('name' in raw) {
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    if (name === '') {
+      return { valid: false, reason: 'name cannot be empty' };
+    }
+    if (name.length > 100) {
+      return { valid: false, reason: 'name must be 100 characters or fewer' };
+    }
+    patch.name = name;
+  }
+
+  if ('phone' in raw) {
+    if (typeof raw.phone !== 'string') {
+      return { valid: false, reason: 'phone must be a Bangladeshi mobile number' };
+    }
+    const phone = normalisePhone(raw.phone);
+    if (phone === null) {
+      return { valid: false, reason: 'phone must be a Bangladeshi mobile number' };
+    }
+    patch.phone = phone;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { valid: false, reason: 'Nothing to update — send name or phone' };
+  }
+
+  return { valid: true, value: patch };
+}

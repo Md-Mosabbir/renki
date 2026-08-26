@@ -27,9 +27,12 @@ import { HttpError } from '../utils/http-error.js';
  *     stranger scan answers was already settled.
  */
 
-/** Same 90 seconds as a friend meetup, for the same reason: a screenshot must
- *  be stale before it can be forwarded and used. */
-export const RIDE_START_CODE_TTL_SECONDS = 90;
+/**
+ * How long ONE symbol lives. Same as a friend meetup, for the same reason: a
+ * screenshot must be stale before it can be forwarded and used. See the note on
+ * MEETUP_CODE_TTL_SECONDS in friendship.service.ts — these two must not drift.
+ */
+export const RIDE_START_CODE_TTL_SECONDS = 30;
 
 export interface StartCode {
   code: string;
@@ -216,6 +219,76 @@ export async function completeRide(
 }
 
 /**
+ * Call the ride off.
+ *
+ * `ride_groups.status` has carried a 'cancelled' value since the first
+ * migration and nothing has ever written it, which meant a matched stranger
+ * ride was a one-way door: no button, no endpoint, and the other person's
+ * request stayed consumed forever. This is that door's handle.
+ *
+ * Any accepted member may cancel, alone. The same reasoning as finishing: a
+ * cancellation that needs the other person to agree is a ride nobody can leave
+ * the moment one of them stops answering their phone.
+ *
+ * An ACTIVE ride can be cancelled too. `chk_ride_group_started_at` is written
+ * as an implication rather than an equivalence precisely so that a cancelled
+ * row is allowed to keep the moment it started — plans do fall apart after the
+ * scan, and forcing that to be recorded as 'completed' would put a ride that
+ * never happened into `ride_histories`.
+ *
+ * `ride_histories` is deliberately NOT written here. Nothing was shared.
+ */
+export async function cancelRide(userId: string, groupId: string): Promise<StartedRide> {
+  return transaction(async (client) => {
+    const group = await loadGroupForMember(client, groupId, userId, true);
+
+    if (group.status === 'cancelled') {
+      throw new HttpError(409, 'This ride is already cancelled');
+    }
+    if (group.status === 'completed') {
+      throw new HttpError(409, 'This ride is already finished');
+    }
+
+    const { rows: updated } = await client.query<RideGroupRow>(
+      `UPDATE ride_groups SET status = 'cancelled', cancelled_at = now()
+        WHERE id = $1
+       RETURNING ${GROUP_COLUMNS}, started_at, completed_at, cancelled_at`,
+      [groupId]
+    );
+
+    const cancelled = updated[0];
+    if (!cancelled) {
+      throw new HttpError(500, 'Ride group disappeared mid-update');
+    }
+
+    // The searches that produced this ride are spent. They are NOT reopened to
+    // 'pending': re-dealing a card for someone whose ride was just called off
+    // would put them back in front of the person who called it off. Making a
+    // fresh request is the deliberate act that says "still going".
+    await client.query(
+      `UPDATE ride_requests SET status = 'cancelled'
+        WHERE ride_group_id = $1 AND status = 'matched'`,
+      [groupId]
+    );
+
+    // Kill any live start code rather than waiting out its 90 seconds, so a
+    // screenshot taken a moment ago cannot start a ride that no longer exists.
+    //
+    // DELETE, not "mark consumed": nobody scanned it, and marking it consumed
+    // would claim they did. It would also fail outright whenever the person
+    // cancelling is the person who issued the code, which is the common case —
+    // `chk_qr_not_self` forbids consumed_by_user_id = issued_by_user_id.
+    await client.query(
+      `DELETE FROM qr_verifications
+        WHERE ride_group_id = $1 AND consumed_at IS NULL`,
+      [groupId]
+    );
+
+    return { group: cancelled, members: await loadMembers(client, groupId) };
+  });
+}
+
+/**
  * Record that these people rode together.
  *
  * `ride_histories` stores one row per unordered pair — `chk_history_ordered`
@@ -304,8 +377,10 @@ async function loadMembers(
 ): Promise<GroupMemberRow[]> {
   const { rows } = await client.query<GroupMemberRow>(
     `SELECT i.user_id, u.name, u.profile_picture_url,
-            i.status AS invite_status, i.direction, i.responded_at
+            i.status AS invite_status, i.direction, i.responded_at,
+            i.dropoff_location_id, drop.address AS dropoff_address
        FROM ride_group_invites i
+       LEFT JOIN locations drop ON drop.id = i.dropoff_location_id
        JOIN users u ON u.id = i.user_id
       WHERE i.ride_group_id = $1
       ORDER BY i.created_at`,
