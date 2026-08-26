@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, ScanLine, Search, UserPlus, X } from 'lucide-react';
+import { Check, Loader2, ScanLine, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
 import { SkeletonList } from '@/components/motion/skeleton';
-import { InlineMark } from '@/components/motion/mark';
 import { FriendRow } from '@/components/friends/friend-row';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -354,7 +353,7 @@ function AddFriends({ onAdded }: { onAdded: () => void }) {
 
       {searching ? (
         <div className="text-muted-foreground flex items-center gap-3 py-8 text-sm">
-          <InlineMark className="size-4" />
+          <Loader2 className="size-4 animate-spin" />
           Searching
         </div>
       ) : candidates.length === 0 ? (

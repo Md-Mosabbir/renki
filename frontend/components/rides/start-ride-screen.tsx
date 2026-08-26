@@ -3,14 +3,13 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, QrCode, ScanLine } from 'lucide-react';
+import { ArrowLeft, Loader2, QrCode, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import { CODE_SESSION_SECONDS, useRotatingCode } from '@/lib/use-rotating-code';
 import { buildRideStartLink, extractMeetupCode } from '@/lib/meetup-link';
 import { AppShell, Page } from '@/components/app-shell';
-import { InlineMark } from '@/components/motion/mark';
 import { Button } from '@/components/ui/button';
 import { MeetupBlob } from '@/components/meetup/meetup-blob';
 import { MeetupCodePlate } from '@/components/meetup/meetup-code-plate';
@@ -149,7 +148,11 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
                 disabled={busy}
                 className="mx-auto mt-4 flex rounded-none"
               >
-                {busy ? <InlineMark className="size-4" /> : <QrCode className="size-4" />}
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <QrCode className="size-4" />
+                )}
                 New code
               </Button>
             )}

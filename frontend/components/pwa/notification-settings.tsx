@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BellOff, Send } from 'lucide-react';
+import { Bell, BellOff, Loader2, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
@@ -13,7 +13,6 @@ import {
   subscribe,
 } from '@/lib/push';
 import { Button } from '@/components/ui/button';
-import { InlineMark } from '@/components/motion/mark';
 
 /**
  * Turning notifications on, and proving they work.
@@ -162,7 +161,7 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
           className="rounded-none"
         >
           {busy ? (
-            <InlineMark className="size-3.5" />
+            <Loader2 className="size-3.5 animate-spin" />
           ) : subscribed ? (
             <BellOff className="size-3.5" />
           ) : (

@@ -172,25 +172,6 @@ export const httpApi = {
     return user;
   },
 
-  /**
-   * Verify the signed-in account with no evidence. DEVELOPMENT ONLY.
-   *
-   * Points at `/api/dev/verify`, which the server does not mount outside
-   * development — so in production this is a 404 rather than a stub that has
-   * to remember to refuse. It replaced `/api/verification/self`, which was the
-   * same behaviour on a public route behind an env flag.
-   *
-   * Goes away entirely when capture and matching land; it is not the shape the
-   * real submit takes, which posts two images as multipart.
-   */
-  async devVerify(): Promise<User> {
-    const { user } = await request<{ user: User }>('/dev/verify', {
-      method: 'POST',
-      auth: true,
-    });
-    return user;
-  },
-
   // ---- Web Push ----
 
   /**

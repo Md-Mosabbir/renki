@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { SwipeDeck } from '@/components/rides/swipe-deck';
 import { PinPicker } from '@/components/map/pin-picker';
-import { InlineMark, SearchingRings } from '@/components/motion/mark';
+import { SearchingRings } from '@/components/motion/mark';
 import { SearchStatus } from '@/components/rides/search-status';
 import { MatchesSheet } from '@/components/rides/matches-sheet';
 import type { PinValue } from '@/components/map/pin-picker';
@@ -350,7 +350,11 @@ export default function StrangerSearchPage() {
                 className="h-14 w-full justify-between rounded-none text-base"
               >
                 {busy ? 'Searching…' : 'Find riders'}
-                {busy ? <InlineMark className="size-4" /> : <Search className="size-4" />}
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Search className="size-4" />
+                )}
               </Button>
             </div>
           </>

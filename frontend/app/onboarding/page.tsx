@@ -2,13 +2,12 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import type { ProfileInput } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { InlineMark } from '@/components/motion/mark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StepShell } from '@/components/onboarding/step-shell';
@@ -154,7 +153,7 @@ export default function OnboardingPage() {
         >
           {pending ? 'Setting up…' : 'Finish'}
           {pending ? (
-            <InlineMark className="size-4" />
+            <Loader2 className="size-4 animate-spin" />
           ) : (
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
           )}

@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { AppShell, Page } from '@/components/app-shell';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError, session } from '@/lib/api';
-import { isVerified } from '@/lib/trust';
+import { canRide } from '@/lib/trust';
 import type { User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,15 @@ import { MyReports } from '@/components/reports/my-reports';
  * changes instead of trying to change their gender, which is why it sits
  * directly above the locked row explaining that they cannot.
  */
+/** What each trust stage means to the student whose account it is. */
+const STAGE_LABEL: Record<string, string> = {
+  new: 'Active',
+  verified: 'Confirmed by a moderator',
+  established: 'Established rider',
+  challenged: 'Confirmation needed',
+  suspended: 'Suspended',
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const { status, user } = useSession();
@@ -56,7 +65,7 @@ export default function ProfilePage() {
   }
 
   const current = saved ?? user;
-  const verified = isVerified(current);
+  const ok = canRide(current);
 
   return (
     <AppShell>
@@ -82,20 +91,22 @@ export default function ProfilePage() {
             </div>
           </section>
 
+          {/* Says what the stage MEANS, not what it is called. Rendering
+              `trustStage` raw put the word "New" behind a warning shield on a
+              perfectly healthy account — nobody is verified at signup any more,
+              so "new" is the normal state and reads as a problem only if the
+              screen insists on showing the database's word for it. */}
           <section
             className={`flex items-center gap-3 border-l-2 p-4 ${
-              verified ? 'border-brand bg-brand-muted' : 'border-border bg-muted/40'
+              ok ? 'border-brand bg-brand-muted' : 'border-destructive bg-destructive/5'
             }`}
           >
-            {verified ? (
+            {ok ? (
               <ShieldCheck className="text-brand size-4 shrink-0" strokeWidth={2} />
             ) : (
-              <ShieldAlert
-                className="text-muted-foreground size-4 shrink-0"
-                strokeWidth={2}
-              />
+              <ShieldAlert className="text-destructive size-4 shrink-0" strokeWidth={2} />
             )}
-            <p className="text-sm font-medium capitalize">{current.trustStage}</p>
+            <p className="text-sm font-medium">{STAGE_LABEL[current.trustStage]}</p>
           </section>
 
           <MatchingPreference

@@ -24,14 +24,6 @@ export const api = {
   completeProfile: httpApi.completeProfile,
   /** PATCH /api/auth/me — name and phone only; everything else is locked. */
   updateProfile: httpApi.updateProfile,
-  /**
-   * POST /api/dev/verify — DEVELOPMENT ONLY, verifies with no evidence.
-   *
-   * Not mounted by the server outside development, so this 404s in production
-   * rather than relying on a handler to refuse. Deleted once the real capture
-   * and match flow lands.
-   */
-  devVerify: httpApi.devVerify,
 
   // ---- REAL — served by backend/src/routes/push.routes.ts ----
   /** GET /api/push/key — the VAPID public key, or enabled:false. */

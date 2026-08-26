@@ -1,21 +1,17 @@
 'use client';
 
-import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Clock, Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
-import { AppLoader, InlineMark } from '@/components/motion/mark';
+import { AppLoader } from '@/components/motion/mark';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
 import { OpenSearchBanner } from '@/components/rides/open-search-banner';
 import { useSession } from '@/lib/use-session';
-import { api, ApiError } from '@/lib/api';
-import { isChallenged, isSuspended, isVerified } from '@/lib/trust';
+import { canRide, isChallenged, isSuspended } from '@/lib/trust';
 import { ChallengeBanner } from '@/components/verify/challenge-banner';
 import type { User } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
 
 /**
@@ -32,14 +28,13 @@ export default function RidesPage() {
   // Overlays the session copy after verifying. useSession reads once on mount,
   // so without this the banner would keep saying "pending" until a reload —
   // right after the student watched it succeed.
-  const [override, setOverride] = useState<User | null>(null);
 
   if (status !== 'authenticated') {
     return <LoadingScreen />;
   }
 
-  const current = override ?? user;
-  const verified = isVerified(current);
+  const current = user;
+  const rideable = canRide(current);
   const challenged = isChallenged(current);
   const firstName = current.name.split(' ')[0];
 
@@ -67,20 +62,16 @@ export default function RidesPage() {
               student is also "not verified", and showing them both would offer
               a Verify button beside the actual thing being asked of them —
               two competing instructions, one of which does nothing. */}
-          {challenged ? (
-            <ChallengeBanner />
-          ) : (
-            <TrustBanner user={current} onVerified={setOverride} />
-          )}
+          {challenged ? <ChallengeBanner /> : <StatusBanner user={current} />}
 
           {/* Someone picked you. Above the fork on purpose: it is the only
               thing on this page that another person is waiting on. */}
-          {verified && <IncomingMatches onMatched={() => router.push('/groups')} />}
+          {rideable && <IncomingMatches onMatched={() => router.push('/groups')} />}
 
           {/* A search already running. Below IncomingMatches because somebody
               else waiting on an answer outranks your own search still looking,
               and above the fork because it is the reason the fork will refuse. */}
-          {verified && <OpenSearchBanner />}
+          {rideable && <OpenSearchBanner />}
 
           {/* The fork. Two ways to find a ride and they are genuinely
               different products: a stranger match is one other person, chosen
@@ -95,7 +86,7 @@ export default function RidesPage() {
 
             <RideOption
               href="/rides/search"
-              enabled={verified}
+              enabled={rideable}
               icon={Search}
               title="Match with a stranger"
               body="One other rider leaving campus around the same time, going near where you are going. You both swipe; a ride happens only if you both say yes."
@@ -103,15 +94,15 @@ export default function RidesPage() {
 
             <RideOption
               href="/groups/new"
-              enabled={verified}
+              enabled={rideable}
               icon={Users}
               title="Ride with friends"
               body="Up to six people. Everyone in the group has to have met everyone else in person — not just you."
             />
 
-            {!verified && (
+            {!rideable && (
               <p className="text-muted-foreground text-xs leading-relaxed">
-                Verify your account above to start either one.
+                Your account is on hold, so neither is available right now.
               </p>
             )}
           </section>
@@ -218,47 +209,32 @@ function LoadingScreen() {
 }
 
 /**
- * Verification state, and the button that changes it.
+ * What state this account is in — and only when that is worth saying.
  *
- * The button is honest about being a stub: POST /api/dev/verify grants the
- * trust stage with no evidence, and the server does not mount /api/dev outside
- * development at all. When selfie and ID capture land, this button routes into
- * that flow instead and nothing else on this page changes.
+ * This used to be a "Not verified yet" banner with a Verify button, and both
+ * halves described a flow that no longer exists. Nobody is verified at signup:
+ * a student declares a gender and rides, and identity is only ever questioned
+ * after somebody reports it (see the gender challenge in CLAUDE.md). The button
+ * called POST /api/dev/verify, which is not mounted in production and answered
+ * 404 there — while the dashboard simultaneously greyed out both ride options
+ * for exactly the students it was shown to. A new account could not use the app
+ * at all, and the way out was a button that failed.
  *
- * Three states, not two. A suspended account is also "not verified", and the
- * difference matters: there is nothing it can do from here.
+ * So there are two states now, not three:
+ *   suspended — a moderator has stopped this account; nothing to offer
+ *   otherwise — say who they will be matched with, and link to the setting
+ *
+ * A challenged student never reaches here: rides/page renders ChallengeBanner
+ * instead, because being asked to confirm something is a different situation
+ * from being told you may not ride.
  */
-function TrustBanner({
-  user,
-  onVerified,
-}: {
-  user: User;
-  onVerified: (user: User) => void;
-}) {
-  const [pending, setPending] = useState(false);
-  const verified = isVerified(user);
+function StatusBanner({ user }: { user: User }) {
   const suspended = isSuspended(user);
-
-  const verify = useCallback(async () => {
-    setPending(true);
-    try {
-      onVerified(await api.devVerify());
-      toast.success('Verified — you can be matched now');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not verify you');
-    } finally {
-      setPending(false);
-    }
-  }, [onVerified]);
 
   return (
     <section
       className={`border-l-2 p-5 transition-colors duration-500 ${
-        suspended
-          ? 'border-destructive bg-destructive/5'
-          : verified
-            ? 'border-brand bg-brand-muted'
-            : 'border-border bg-muted/40'
+        suspended ? 'border-destructive bg-destructive/5' : 'border-border bg-muted/40'
       }`}
     >
       <div className="flex items-start gap-4">
@@ -267,38 +243,27 @@ function TrustBanner({
             className="text-destructive mt-0.5 size-5 shrink-0"
             strokeWidth={2}
           />
-        ) : verified ? (
-          <ShieldCheck className="text-brand mt-0.5 size-5 shrink-0" strokeWidth={2} />
         ) : (
-          <ShieldAlert
-            className="text-muted-foreground mt-0.5 size-5 shrink-0"
-            strokeWidth={2}
-          />
+          <ShieldCheck className="text-brand mt-0.5 size-5 shrink-0" strokeWidth={2} />
         )}
 
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">
-            {suspended
-              ? 'Account suspended'
-              : verified
-                ? 'Verified student'
-                : 'Not verified yet'}
+            {suspended ? 'Account suspended' : user.name.split(' ')[0]}
           </p>
           <p className="text-muted-foreground text-sm leading-relaxed">
             {suspended
               ? 'A moderator has suspended this account, so you cannot be matched. Contact the Renki team if you think this is a mistake.'
-              : verified
-                ? `${user.university} · ${
-                    user.matchOpenToAll
-                      ? 'open to riders of any gender'
-                      : `matched only with ${user.gender} riders`
-                  }`
-                : "You can look around, but you won't be matched until you verify."}
+              : `${user.university} · ${
+                  user.matchOpenToAll
+                    ? 'open to riders of any gender'
+                    : `matched only with ${user.gender} riders`
+                }`}
           </p>
           {/* A banner that states a setting has to lead to the setting.
               Otherwise it reads as a fixed rule of the app, which is exactly
               what it stopped being. */}
-          {verified && (
+          {!suspended && (
             <Link
               href="/profile"
               className="text-brand inline-block text-xs font-medium underline-offset-4 hover:underline"
@@ -308,31 +273,6 @@ function TrustBanner({
           )}
         </div>
       </div>
-
-      {/* Not `!verified`: a suspended account is also not verified, and
-          offering it a Verify button promises a way out that does not exist.
-          Only a moderator can lift a suspension. */}
-      {!verified && !suspended && (
-        <div className="mt-5 space-y-2 pl-9">
-          <Button onClick={() => void verify()} disabled={pending}>
-            {pending ? (
-              <>
-                <InlineMark className="size-4" />
-                Verifying
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="size-4" />
-                Verify me
-              </>
-            )}
-          </Button>
-          <p className="text-muted-foreground text-xs">
-            Development only — this verifies instantly and does not exist in production.
-            The real flow photographs your student ID and your face.
-          </p>
-        </div>
-      )}
     </section>
   );
 }

@@ -66,22 +66,6 @@ export function AppLoader({ label, className }: { label?: string; className?: st
 }
 
 /**
- * Inside a button, while an action is in flight.
- *
- * `bg-current` rather than `bg-brand`: on a filled button the brand orange on
- * brand orange would be invisible, so it takes the colour of whatever text it
- * sits beside and stays legible on every variant.
- */
-export function InlineMark({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={`animate-mark-hop inline-block bg-current ${className ?? 'size-2.5'}`}
-    />
-  );
-}
-
-/**
  * Searching: a ring expanding outward.
  *
  * Not a metaphor. `services/matching/candidate-query.ts` takes the H3 cell of

@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, ImageUp, RotateCcw } from 'lucide-react';
+import { Camera, ImageUp, Loader2, RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { InlineMark } from '@/components/motion/mark';
 
 /**
  * Take one photo, front camera, and hand back a downscaled JPEG.
@@ -145,7 +144,7 @@ export function PhotoCapture({
           >
             {busy ? (
               <>
-                <InlineMark className="size-4" />
+                <Loader2 className="size-4 animate-spin" />
                 Sending
               </>
             ) : (
@@ -210,7 +209,7 @@ export function PhotoCapture({
           >
             {cameraState === 'starting' ? (
               <>
-                <InlineMark className="size-4" />
+                <Loader2 className="size-4 animate-spin" />
                 Opening camera
               </>
             ) : (

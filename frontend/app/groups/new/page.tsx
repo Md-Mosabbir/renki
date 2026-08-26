@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import type { Destination, FriendGraph } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { InlineMark } from '@/components/motion/mark';
 import { Label } from '@/components/ui/label';
 import { AppShell, Page } from '@/components/app-shell';
 import { FriendPicker } from '@/components/groups/friend-picker';
@@ -195,7 +194,11 @@ export default function NewGroupPage() {
               className="h-14 w-full justify-between rounded-none text-base"
             >
               {pending ? 'Sending invitations…' : 'Send invitations'}
-              {pending ? <InlineMark className="size-4" /> : <Users className="size-4" />}
+              {pending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Users className="size-4" />
+              )}
             </Button>
 
             <p className="text-muted-foreground text-xs leading-relaxed">

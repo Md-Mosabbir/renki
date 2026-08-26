@@ -11,6 +11,36 @@ import type { User } from '@/lib/api';
  * The three states are genuinely different and each needs its own answer, so
  * a boolean pair is the wrong shape for callers to reconstruct by hand.
  */
+/**
+ * May this student request a ride?
+ *
+ * MIRRORS `RIDEABLE_TRUST_STAGES` in backend/src/services/ride-request.service.ts.
+ * The two must move together — and the cost of them not doing so was a real,
+ * production-breaking bug: that array gained `'new'` when the gender challenge
+ * replaced signup verification, and this file was never updated. Every newly
+ * signed-up student therefore saw both ride options greyed out, and the Verify
+ * button offered instead called a development-only endpoint that 404s in
+ * production. The API would have accepted their ride request happily; only the
+ * UI refused.
+ *
+ * This is the predicate a screen should ask. `isVerified` answers a narrower
+ * question — has a moderator cleared a challenge — and is NOT a permission.
+ */
+export function canRide(user: User): boolean {
+  return (
+    user.trustStage === 'new' ||
+    user.trustStage === 'verified' ||
+    user.trustStage === 'established'
+  );
+}
+
+/**
+ * Challenged and CLEARED by a moderator. Not a gate on anything.
+ *
+ * Since the gender challenge landed, nobody is verified at signup and `'new'`
+ * rides normally — so this is a fact about someone's history, not a permission.
+ * Use `canRide` to decide what a screen may offer.
+ */
 export function isVerified(user: User): boolean {
   return user.trustStage === 'verified' || user.trustStage === 'established';
 }
