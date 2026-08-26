@@ -50,9 +50,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          # workflow_dispatch has no "before", and neither does the very first
-          # commit on a branch. Deploying everything is the safe answer when we
-          # cannot tell — the alternative is silently skipping a release.
+          # A manual run means "release what is on main now", not "release
+          # whatever the last commit happened to touch". Diffing HEAD^ here
+          # would make a re-run after a CI-only commit deploy nothing at all
+          # and still report success — which is exactly the case a manual run
+          # is reached for.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual run; deploying both workspaces"
+            echo "backend=true"  >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The very first commit on a branch has no HEAD^. Deploying
+          # everything is the safe answer when we cannot tell — the
+          # alternative is silently skipping a release.
           if ! changed=$(git diff --name-only HEAD^ HEAD 2>/dev/null); then
             echo "no previous commit to diff against; deploying everything"
             echo "backend=true"  >> "$GITHUB_OUTPUT"
