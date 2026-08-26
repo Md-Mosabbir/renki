@@ -103,7 +103,17 @@ CREATE TABLE public.gender_verifications (
     matcher character varying(40),
     reviewed_by_user_id uuid,
     review_note text,
+    attempt_id uuid,
+    selfie_object_key text,
+    selfie_deleted_at timestamp with time zone,
+    submitted_at timestamp with time zone,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    last_attempt_at timestamp with time zone,
+    challenged_at timestamp with time zone,
+    challenged_by_user_id uuid,
+    report_id uuid,
     CONSTRAINT chk_verification_distance_sane CHECK (((match_distance IS NULL) OR (match_distance >= (0)::double precision))),
+    CONSTRAINT chk_verification_selfie_gone CHECK (((selfie_deleted_at IS NULL) OR (selfie_object_key IS NULL))),
     CONSTRAINT chk_verification_status CHECK (((verification_status)::text = ANY ((ARRAY['pending'::character varying, 'under_review'::character varying, 'verified'::character varying, 'failed'::character varying])::text[])))
 );
 
@@ -112,7 +122,42 @@ CREATE TABLE public.gender_verifications (
 -- Name: COLUMN gender_verifications.match_distance; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.gender_verifications.match_distance IS 'Raw distance from the face matcher. Compare against match_threshold — the scale is model-specific and means nothing on its own.';
+COMMENT ON COLUMN public.gender_verifications.match_distance IS 'Unused. Left from the abandoned automated face-match design (migrations 16 and 28); a moderator decides now and records no number. Kept nullable rather than dropped so it is the landing place if matching ever returns.';
+
+
+--
+-- Name: COLUMN gender_verifications.match_threshold; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.match_threshold IS 'Unused. See match_distance.';
+
+
+--
+-- Name: COLUMN gender_verifications.matcher; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.matcher IS 'Who decided: ''moderator'', or ''self-attested'' for /api/dev/verify.';
+
+
+--
+-- Name: COLUMN gender_verifications.attempt_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.attempt_id IS 'Per-submission id. Object keys are built from it rather than from the row id, because UNIQUE (user_id) makes the row id stable across retries and attempt N would otherwise overwrite N-1 while the row still pointed at it.';
+
+
+--
+-- Name: COLUMN gender_verifications.selfie_object_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.selfie_object_key IS 'Key of the live capture in the private bucket. NULL once deleted. Kept only while a decision is outstanding: an under_review case a human cannot look at is not reviewable. Deleted on verified/failed.';
+
+
+--
+-- Name: COLUMN gender_verifications.challenged_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gender_verifications.challenged_at IS 'When a moderator issued the challenge. NULL for a row that was never challenged — /api/dev/verify writes one of those.';
 
 
 --
@@ -185,7 +230,7 @@ CREATE TABLE public.reports (
     reviewed_by_user_id uuid,
     CONSTRAINT chk_report_not_self CHECK ((reporter_id <> reported_user_id)),
     CONSTRAINT chk_reports_closed_are_reviewed CHECK ((((status)::text <> ALL ((ARRAY['resolved'::character varying, 'dismissed'::character varying])::text[])) OR (reviewed_at IS NOT NULL))),
-    CONSTRAINT chk_reports_reason CHECK (((reason)::text = ANY ((ARRAY['no_show'::character varying, 'unsafe_behaviour'::character varying, 'harassment'::character varying, 'impersonation'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT chk_reports_reason CHECK (((reason)::text = ANY ((ARRAY['no_show'::character varying, 'unsafe_behaviour'::character varying, 'harassment'::character varying, 'impersonation'::character varying, 'gender_mismatch'::character varying, 'other'::character varying])::text[]))),
     CONSTRAINT chk_reports_reviewed_pair CHECK (((reviewed_at IS NULL) = (reviewed_by_user_id IS NULL))),
     CONSTRAINT reports_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'under_review'::character varying, 'resolved'::character varying, 'dismissed'::character varying])::text[])))
 );
@@ -359,12 +404,17 @@ CREATE TABLE public.users (
     is_admin boolean DEFAULT false NOT NULL,
     id_card_captured_at timestamp with time zone,
     match_open_to_all boolean DEFAULT false NOT NULL,
+    suspended_at timestamp with time zone,
+    suspended_by_user_id uuid,
+    suspension_reason text,
+    trust_stage_before_suspension character varying(20),
     CONSTRAINT chk_users_dob_sane CHECK (((date_of_birth IS NULL) OR ((date_of_birth > '1940-01-01'::date) AND (date_of_birth < CURRENT_DATE)))),
     CONSTRAINT chk_users_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying, 'unspecified'::character varying])::text[]))),
     CONSTRAINT chk_users_phone_format CHECK (((phone IS NULL) OR ((phone)::text ~ '^\+8801[3-9][0-9]{8}$'::text))),
     CONSTRAINT chk_users_qr_token_paired CHECK (((qr_token IS NULL) = (qr_token_expires_at IS NULL))),
     CONSTRAINT chk_users_student_id_format CHECK (((student_id IS NULL) OR ((student_id)::text ~ '^[0-9]{7,12}$'::text))),
-    CONSTRAINT chk_users_trust_stage CHECK (((trust_stage)::text = ANY ((ARRAY['new'::character varying, 'verified'::character varying, 'established'::character varying])::text[])))
+    CONSTRAINT chk_users_suspension_paired CHECK ((((trust_stage)::text = 'suspended'::text) = (suspended_at IS NOT NULL))),
+    CONSTRAINT chk_users_trust_stage CHECK (((trust_stage)::text = ANY ((ARRAY['new'::character varying, 'verified'::character varying, 'established'::character varying, 'challenged'::character varying, 'suspended'::character varying])::text[])))
 );
 
 
@@ -373,6 +423,13 @@ CREATE TABLE public.users (
 --
 
 COMMENT ON COLUMN public.users.id_card_image_url IS 'Path to the student ID card image in the private storage bucket. RETAINED as the reference photo for ride-time identity challenges (see migration 17; supersedes the transient-use note in migration 15). Obligations: private bucket only, never a public URL; serve through short-lived signed URLs; delete when the account is deleted.';
+
+
+--
+-- Name: COLUMN users.trust_stage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.trust_stage IS 'new: signed in and onboarded, may ride. verified: challenged and cleared. established: unused, reserved for completed-ride history. challenged: a moderator has asked for a photo and is waiting. suspended: banned.';
 
 
 --
@@ -387,6 +444,13 @@ COMMENT ON COLUMN public.users.profile_completed_at IS 'When the onboarding form
 --
 
 COMMENT ON COLUMN public.users.id_card_captured_at IS 'When the retained ID card image was captured. Drives retention and re-capture prompts; NULL means no card is on file.';
+
+
+--
+-- Name: COLUMN users.trust_stage_before_suspension; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.trust_stage_before_suspension IS 'What the stage was when the suspension was applied, so lifting one restores rather than guesses. Nothing writes ''established'' yet, so this is always ''verified'' today — it will not stay that way.';
 
 
 --
@@ -654,7 +718,7 @@ CREATE INDEX friendships_requester_idx ON public.friendships USING btree (reques
 -- Name: gender_verifications_queue_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX gender_verifications_queue_idx ON public.gender_verifications USING btree (created_at) WHERE ((verification_status)::text = 'under_review'::text);
+CREATE INDEX gender_verifications_queue_idx ON public.gender_verifications USING btree (submitted_at) WHERE ((verification_status)::text = 'under_review'::text);
 
 
 --
@@ -854,6 +918,13 @@ CREATE UNIQUE INDEX uq_qr_live_per_group ON public.qr_verifications USING btree 
 
 
 --
+-- Name: users_suspended_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX users_suspended_idx ON public.users USING btree (suspended_at) WHERE (suspended_at IS NOT NULL);
+
+
+--
 -- Name: friend_meetups friend_meetups_consumed_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -891,6 +962,22 @@ ALTER TABLE ONLY public.friendships
 
 ALTER TABLE ONLY public.friendships
     ADD CONSTRAINT friendships_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gender_verifications gender_verifications_challenged_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gender_verifications
+    ADD CONSTRAINT gender_verifications_challenged_by_user_id_fkey FOREIGN KEY (challenged_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: gender_verifications gender_verifications_report_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gender_verifications
+    ADD CONSTRAINT gender_verifications_report_id_fkey FOREIGN KEY (report_id) REFERENCES public.reports(id) ON DELETE SET NULL;
 
 
 --
@@ -1131,6 +1218,14 @@ ALTER TABLE ONLY public.ride_requests
 
 ALTER TABLE ONLY public.uber_integrations
     ADD CONSTRAINT uber_integrations_ride_group_id_fkey FOREIGN KEY (ride_group_id) REFERENCES public.ride_groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users users_suspended_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_suspended_by_user_id_fkey FOREIGN KEY (suspended_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

@@ -18,7 +18,21 @@ export type Gender = 'male' | 'female' | 'unspecified';
  * holds before onboarding and never a ride.
  */
 export type RideGroupGender = 'male' | 'female' | 'mixed';
-export type TrustStage = 'new' | 'verified' | 'established';
+/**
+ * Mirrors TRUST_STAGES in backend/src/models/user.model.ts and
+ * chk_users_trust_stage. Keep the three in step by hand.
+ *
+ *   new          onboarded, may ride. The normal state — nothing is verified
+ *                at signup.
+ *   verified     was challenged over their declared gender, and cleared.
+ *   established  reserved for completed-ride history. Nothing writes it yet.
+ *   challenged   a moderator is waiting for a photo. May not ride.
+ *   suspended    banned by a moderator. May not ride.
+ *
+ * Never compare these by hand — `lib/trust.ts` owns what they mean, because
+ * `trustStage !== 'new'` silently became wrong the moment the last two existed.
+ */
+export type TrustStage = 'new' | 'verified' | 'established' | 'challenged' | 'suspended';
 
 /** Mirrors `PublicUser` in backend/src/models/user.model.ts. */
 export interface User {
@@ -431,9 +445,19 @@ export interface RideHistoryPage {
  * `impersonation` is not a sub-case of `other`: the whole scan model exists to
  * prove the person who turned up is the person who matched, so "they were not
  * who their profile said" is the one report a moderator must see first.
+ *
+ * `gender_mismatch` is narrower than that, and separate from it. The account is
+ * genuinely theirs; the gender on it is false. It is the ONLY reason that can
+ * lead to a moderator asking somebody for a photograph, so it must not be
+ * reachable by mistake from a neighbouring option.
  */
 export type ReportReason =
-  'no_show' | 'unsafe_behaviour' | 'harassment' | 'impersonation' | 'other';
+  | 'no_show'
+  | 'unsafe_behaviour'
+  | 'harassment'
+  | 'impersonation'
+  | 'gender_mismatch'
+  | 'other';
 
 export type ReportStatus = 'open' | 'under_review' | 'resolved' | 'dismissed';
 
@@ -489,8 +513,45 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   unsafe_behaviour: 'Unsafe behaviour',
   harassment: 'Harassment',
   impersonation: 'Not who their profile said',
+  gender_mismatch: 'Their gender was not what they declared',
   other: 'Something else',
 };
+
+/* ------------------------------------------------------------------ *
+ * The gender challenge
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mirrors CHALLENGE_STATUSES in backend/src/services/gender-challenge.service.ts
+ * and chk_verification_status.
+ *
+ * Renki verifies nobody at signup. These states exist only for a student a
+ * moderator has actually asked a question of.
+ */
+export type ChallengeStatus = 'pending' | 'under_review' | 'verified' | 'failed';
+
+export interface Challenge {
+  id: string;
+  status: ChallengeStatus;
+  challengedAt: string | null;
+  /** What the moderator wrote when they ruled. Null until then. */
+  reviewNote: string | null;
+  /** True while the student still owes a photo. */
+  awaitingPhoto: boolean;
+}
+
+/** A case as a moderator sees it. `photoUrl` is signed and short-lived. */
+export interface ChallengeCase {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  /** What they said at onboarding. The only thing the photo is compared to. */
+  declaredGender: Gender;
+  reportId: string | null;
+  submittedAt: string;
+  photoUrl: string | null;
+}
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   open: 'Open',

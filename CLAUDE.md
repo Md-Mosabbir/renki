@@ -156,8 +156,9 @@ condition in one that is not in the other hides people the other would accept.
 The reason it could go: what makes a friend ride safe is that both people met in
 person and scanned a live code, and that never depended on gender. The rule also
 compared two _self-asserted_ genders while `FRIENDABLE_TRUST_STAGES` contains
-`'new'`, so it read as a guarantee while being an honour system. `'new'` is
-still in that array only because identity verification has no mounted route yet.
+`'new'`, so it read as a guarantee while being an honour system. `'new'` is in
+that array permanently now, and deliberately: nobody is verified up front at
+all. See "Gender challenge" below.
 
 **The consequence is that a friends group may be mixed.** `resolveGroupGender`
 computes `ride_groups.gender` rather than asserting it, and returns `'mixed'`
@@ -620,6 +621,106 @@ looked at in a week sinks further every time a new one arrives.
 moderator who resolves something and then realises they were wrong must be able
 to reopen it. `open` is _not_ reachable — reopening is `under_review`, which
 records who did it.
+
+## Gender challenge
+
+**Nobody is verified at signup.** A student declares a gender at onboarding and
+rides. Only if someone alleges the declaration was false does a photo ever
+exist. The honest majority pay nothing, and Renki stores no identity documents
+in the ordinary case.
+
+```
+declares gender, trust_stage 'new'  →  rides normally
+      │
+      └─ someone reports reason='gender_mismatch'
+              │
+              └─ MODERATOR decides whether to challenge
+                     ├─ no  → report resolved; the target is never told
+                     └─ yes → trust_stage='challenged'   (CANNOT RIDE)
+                                │
+                                └─ student uploads ONE photo → 'under_review'
+                                        │
+                                        └─ moderator rules:
+                                             cleared   → 'verified'
+                                             confirmed → 'suspended'
+                                           photo DELETED either way
+```
+
+**The moderator gates the challenge, not the report.** If a report alone forced
+a photo, reporting someone would be a way to compel them to photograph
+themselves on demand — a harassment tool wearing a safety badge. The extra click
+is what makes a malicious report cost the target nothing.
+
+**A challenged account cannot ride, and that is why the gate matters.** A
+challenge nobody has to answer is ignorable, so the block has to be real; a real
+block is exactly why issuing one has to be a decision a human makes.
+
+**Both new stages are excluded for free, and that is why they are stages.**
+`RIDEABLE_TRUST_STAGES` and `FRIENDABLE_TRUST_STAGES` are **allowlists**, so
+`'challenged'` and `'suspended'` are refused by both without either array being
+edited. A boolean column would have needed a matching predicate at six query
+sites, and the sixth is the one somebody forgets.
+
+**`RIDEABLE_TRUST_STAGES` gained `'new'`** in the same change. Removing upfront
+verification while `'new'` was excluded would have left nobody able to ride at
+all. `'verified'` now means something better than it used to: _challenged and
+cleared_.
+
+**Three copies of the stage vocabulary are mirrored by hand** —
+`chk_users_trust_stage` (SQL), `TRUST_STAGES` (backend), `TrustStage`
+(frontend). They must move together.
+
+**`frontend/lib/trust.ts` exists because `trustStage !== 'new'` silently
+inverted.** That expression meant "verified" right up until `'suspended'` was
+added, at which point a suspended student started reading as verified on every
+screen that asked. Ask `isVerified()` / `isChallenged()` / `isSuspended()`; never
+compare the string.
+
+### The photo
+
+**Store the object BEFORE the row, delete it AFTER the commit.** Both halves are
+load-bearing and in opposite directions. An object with no row is garbage a
+sweep can collect; a row pointing at a missing object is a queue entry a
+moderator cannot open. And deleting inside the transaction means a rollback
+destroys an object the surviving row still points at.
+
+**`chk_verification_selfie_gone` is an implication**: a deletion timestamp means
+the key is gone. `selfie_object_key` is nulled and `selfie_deleted_at` set in the
+same statement, so the pair cannot drift.
+
+**`resolveChallenge` learns the old key from a subquery in `RETURNING`.** A
+subquery over the same table reads the statement snapshot, so it yields the value
+from _before_ the UPDATE — one round trip both nulls the key and hands back the
+object to delete. Verified empirically in psql; do not "simplify" it into two
+statements.
+
+**`file.mimetype` is client-supplied and worthless.** `sniffImageType` reads the
+magic bytes (`FF D8 FF`, `89 50 4E 47`). Multer is capped at one file of 5 MB.
+
+**The bucket must be PRIVATE.** Reads go through short-lived signed URLs minted
+per request in the moderator queue, never stored. `STORAGE_*` keys bypass RLS,
+so they may never carry a `NEXT_PUBLIC_` prefix — that inlines them into the
+browser bundle at build time.
+
+**Unconfigured storage selects an in-memory store**, whose signed URLs are
+`data:` URIs. That is what keeps CI green with no cloud account.
+`getObjectStore()` throws at startup under `NODE_ENV=production` instead, so a
+deploy missing `STORAGE_*` fails loudly rather than at the first upload.
+
+### The policy, written down because the code cannot enforce it
+
+A moderator judging gender from a photograph is the thing migration 16 rejected
+when it was a model doing the judging. Moving it to a human, on complaint only,
+makes it rarer and adds judgement — it does not make it accurate.
+
+**A trans or gender-nonconforming student presenting differently from their
+declared gender is not fraud.** That sentence is in the moderator-facing copy on
+`/admin/challenges` on purpose. Remove it and this feature will eventually
+suspend someone it should never have touched.
+
+**Browser-computed verdicts are worthless as security**, which is why
+`POST /api/verification/gender` was deleted rather than kept as a shortcut. A
+client that computes its own verdict can simply report the one it wants.
 
 ## Architecture
 

@@ -4,7 +4,9 @@ import { toPublicUser } from '../models/user.model.js';
 import type { UserRow } from '../models/user.model.js';
 import { env } from '../config/env.js';
 import { query } from '../db/pool.js';
+import { attestVerified } from '../services/gender-challenge.service.js';
 import { signAccessToken } from '../services/auth.service.js';
+import { findById } from '../services/user.service.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**
@@ -39,7 +41,7 @@ const DEV_USER_COLUMNS = `
   id, name, email, google_id, profile_picture_url, id_card_image_url,
   gender, university, created_at, trust_stage, qr_token, qr_token_expires_at,
   date_of_birth, phone, student_id, profile_completed_at, is_admin,
-  match_open_to_all
+  match_open_to_all, id_card_captured_at
 `;
 
 /**
@@ -91,4 +93,42 @@ export async function postDevLogin(req: Request, res: Response): Promise<void> {
   const token = await signAccessToken(row.id, row.email);
 
   res.status(200).json({ data: { token, user: toPublicUser(row) } });
+}
+
+/**
+ * POST /api/dev/verify
+ *
+ * Marks the caller verified with no evidence. This replaces the old
+ * `POST /api/verification/self`, which did the same thing behind an
+ * `ALLOW_SELF_VERIFY` env flag on a PUBLIC route.
+ *
+ * Moving it here is the whole point: a flag is something somebody can switch on
+ * in a dashboard, while `routes/index.ts` refuses to mount `/api/dev` outside
+ * development at all. The deploy smoke test already asserts `/api/dev/login`
+ * answers 404 in production, so this inherits a check that exists rather than
+ * relying on a new one.
+ *
+ * Returns the updated user rather than a bare 204: the client branches on
+ * `trustStage`, so a response without it forces an immediate second request.
+ */
+export async function postDevVerify(req: Request, res: Response): Promise<void> {
+  refuseInProduction();
+
+  if (!req.user) {
+    throw new HttpError(
+      401,
+      'Sign in first — this verifies the caller, not a named account'
+    );
+  }
+
+  // req.user.id, never an id from the body. Otherwise this verifies whoever the
+  // caller names, which is a different and much worse thing.
+  await attestVerified(req.user.id);
+
+  const row = await findById(req.user.id);
+  if (!row) {
+    throw new HttpError(401, 'Account no longer exists');
+  }
+
+  res.status(200).json({ data: { user: toPublicUser(row) } });
 }

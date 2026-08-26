@@ -28,6 +28,16 @@ export const REPORT_REASONS = [
    * is the one a human must see first.
    */
   'impersonation',
+  /**
+   * The account is genuinely theirs and the gender on it is false.
+   *
+   * Narrower than 'impersonation', which means the person who turned up is not
+   * the person who matched — a failure of the scan model. This one is the
+   * failure of a self-declaration, and it is the only report that can lead to a
+   * moderator asking somebody for a photograph, so it must not be reachable by
+   * mistake from a neighbouring option.
+   */
+  'gender_mismatch',
   'other',
 ] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];

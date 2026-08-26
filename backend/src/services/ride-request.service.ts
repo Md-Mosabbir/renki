@@ -49,11 +49,18 @@ export const REQUEST_GRACE_MINUTES = 30;
 /**
  * Trust stages allowed to request a stranger ride.
  *
- * Stricter than friends, deliberately. A friend request is answered by a person
- * who can simply say no; a stranger match puts two people in a car. 'new' means
- * the account has done nothing but sign in.
+ * An allowlist, and that is the whole enforcement mechanism: 'challenged' and
+ * 'suspended' are excluded by not appearing here, so migration 29 needed no
+ * change to this file to make a challenge bite.
+ *
+ * 'new' is in the list. It was not, back when every account was expected to
+ * pass an upfront identity check — but nothing verifies anybody at signup any
+ * more, so excluding 'new' would mean excluding everyone. A student declares a
+ * gender and rides; the check happens only if somebody alleges it was false.
+ * 'verified' now means "was challenged and cleared", not "passed a check at
+ * signup".
  */
-const RIDEABLE_TRUST_STAGES = ['verified', 'established'] as const;
+const RIDEABLE_TRUST_STAGES = ['new', 'verified', 'established'] as const;
 
 export interface RideRequestRow {
   id: string;
@@ -142,7 +149,10 @@ export async function createRideRequest(
     const rider = await loadRider(client, userId);
 
     if (!RIDEABLE_TRUST_STAGES.includes(rider.trust_stage as 'verified')) {
-      throw new HttpError(403, 'Verify your account before requesting a ride');
+      // Say which. The three excluded stages are refused for completely
+      // different reasons, and one message covering all of them sent a
+      // challenged student to look for a Verify button that no longer exists.
+      throw new HttpError(403, blockedRideReason(rider.trust_stage));
     }
     if (rider.gender !== 'male' && rider.gender !== 'female') {
       throw new HttpError(403, 'Confirm your gender before requesting a ride');
@@ -367,6 +377,10 @@ export async function listIncomingMatches(userId: string): Promise<IncomingMatch
         -- shows here as a yes waiting on an answer for a ride that would be
         -- refused the moment it was answered.
         AND (u.gender = me.gender OR (me.match_open_to_all AND u.match_open_to_all))
+        -- Same reasoning as the predicate in candidate-query.ts: a trust stage
+        -- can now be revoked, so somebody blocked after this proposal was
+        -- written must stop appearing as a yes that is waiting on an answer.
+        AND u.trust_stage NOT IN ('challenged', 'suspended')
       ORDER BY r.departure_time`,
     [userId, REQUEST_GRACE_MINUTES]
   );
@@ -638,6 +652,23 @@ async function createMatchedGroup(
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
+
+/**
+ * Why this account cannot request a ride.
+ *
+ * Deliberately does NOT tell a suspended student who suspended them or on whose
+ * report — that is a route back to whoever filed it.
+ */
+function blockedRideReason(stage: string): string {
+  if (stage === 'challenged') {
+    return 'A moderator has asked you to confirm your profile. Open Renki to respond.';
+  }
+  if (stage === 'suspended') {
+    return 'This account has been suspended and cannot book rides.';
+  }
+  // 'new' is rideable, so anything left is a stage nothing writes yet.
+  return 'This account cannot request rides right now.';
+}
 
 function isOpen(status: string): boolean {
   return status === 'pending' || status === 'proposed';

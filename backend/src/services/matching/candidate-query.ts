@@ -78,6 +78,22 @@ const CANDIDATE_SQL = `
      AND (u.gender = $2 OR ($10::boolean AND u.match_open_to_all))
      AND u.profile_completed_at IS NOT NULL
 
+     -- Blocked accounts leave the pool.
+     --
+     -- This file had NO trust_stage predicate at all until now, and relied
+     -- entirely on createRideRequest refusing at the door. That was sound while
+     -- a trust stage only ever moved UP — nobody could become ineligible after
+     -- their request was written. Migrations 28 and 29 make the stage
+     -- revocable, so it stops being sound: a student challenged or suspended
+     -- mid-search would otherwise sit in everyone's deck until their request
+     -- aged out.
+     --
+     -- Two mechanisms, as ever: issueChallenge and suspendAccount cancel the
+     -- blocked student's OWN requests, and this predicate hides them from
+     -- everyone else's pool. Neither half can do the other's job, because a
+     -- student may only write their own rows.
+     AND u.trust_stage NOT IN ('challenged', 'suspended')
+
      -- A stranger ride starts at campus. The same rule migration 19 puts on
      -- ride_groups, applied to the pool a match is drawn from — otherwise the
      -- matcher would happily propose a pairing that could never be created.

@@ -25,7 +25,7 @@ const USER_COLUMNS = `
   id, name, email, google_id, profile_picture_url, id_card_image_url,
   gender, university, created_at, trust_stage, qr_token, qr_token_expires_at,
   date_of_birth, phone, student_id, profile_completed_at, is_admin,
-  match_open_to_all
+  match_open_to_all, id_card_captured_at
 `;
 
 /**
@@ -84,7 +84,7 @@ export async function findById(id: string): Promise<UserRow | null> {
  * onboarding originally finished.
  *
  * Does not touch `trust_stage`. Filling in the form does not make a student
- * verified — that stays 'new' until gender verification passes, which is the
+ * verified — that stays 'new' until identity verification passes, which is the
  * whole point of tracking the two separately.
  */
 export async function completeProfile(

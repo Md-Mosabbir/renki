@@ -220,6 +220,7 @@ describe('toPublicUser', () => {
       student_id: '2211545642',
       profile_completed_at: null,
       is_admin: false,
+      id_card_captured_at: null,
       match_open_to_all: false,
       ...overrides,
     };

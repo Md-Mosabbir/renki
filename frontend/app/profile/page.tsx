@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Lock, LogOut, ShieldAlert, ShieldCheck, UserRoundSearch } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError, session } from '@/lib/api';
+import { isVerified } from '@/lib/trust';
 import type { User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,7 +55,7 @@ export default function ProfilePage() {
   }
 
   const current = saved ?? user;
-  const verified = current.trustStage !== 'new';
+  const verified = isVerified(current);
 
   return (
     <AppShell>
@@ -175,6 +176,17 @@ export default function ProfilePage() {
                   <ShieldCheck className="size-4" />
                 </Link>
               </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="h-14 w-full cursor-pointer justify-between rounded-none text-base"
+              >
+                <Link href="/admin/challenges">
+                  Confirmations
+                  <UserRoundSearch className="size-4" />
+                </Link>
+              </Button>
             </section>
           )}
 
@@ -194,8 +206,9 @@ export default function ProfilePage() {
               <LogOut className="size-4" />
             </Button>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              Your ride history is visible only to you. Verification photos are deleted
-              once checked.
+              Your ride history is visible only to you. Your verification selfie is
+              deleted once it has been checked; your student ID photo is kept, so a rider
+              who does not look like their account can be checked against it.
             </p>
           </section>
         </div>

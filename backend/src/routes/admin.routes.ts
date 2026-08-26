@@ -1,6 +1,11 @@
 import { Router } from 'express';
 
 import { getAdminReports, patchAdminReport } from '../controllers/reports.controller.js';
+import {
+  getChallengeQueue,
+  patchChallenge,
+  postChallenge,
+} from '../controllers/verification.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 
@@ -19,5 +24,15 @@ router.use(requireAuth, requireAdmin);
 // PATCH /api/admin/reports/:id                      body: { status }
 router.get('/reports', getAdminReports);
 router.patch('/reports/:id', patchAdminReport);
+
+// GET   /api/admin/challenges        cases awaiting a decision, oldest first
+// POST  /api/admin/challenges        body: { userId, reportId? }  -> ask
+// PATCH /api/admin/challenges/:id    body: { cleared, note? }     -> rule
+//
+// Issuing is a separate, deliberate act from reading the report that prompted
+// it. A report alone must never compel somebody to photograph themselves.
+router.get('/challenges', getChallengeQueue);
+router.post('/challenges', postChallenge);
+router.patch('/challenges/:id', patchChallenge);
 
 export default router;

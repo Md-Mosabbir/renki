@@ -18,6 +18,8 @@ import { AppShell, Page } from '@/components/app-shell';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError } from '@/lib/api';
+import { isChallenged, isSuspended, isVerified } from '@/lib/trust';
+import { ChallengeBanner } from '@/components/verify/challenge-banner';
 import type { User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
@@ -43,7 +45,8 @@ export default function RidesPage() {
   }
 
   const current = override ?? user;
-  const verified = current.trustStage !== 'new';
+  const verified = isVerified(current);
+  const challenged = isChallenged(current);
   const firstName = current.name.split(' ')[0];
 
   return (
@@ -64,8 +67,17 @@ export default function RidesPage() {
           </section>
 
           {/* Trust state. The single most important thing on the page: it
-              decides whether the primary action below does anything. */}
-          <TrustBanner user={current} onVerified={setOverride} />
+              decides whether the primary action below does anything.
+
+              The two banners are mutually exclusive on purpose. A challenged
+              student is also "not verified", and showing them both would offer
+              a Verify button beside the actual thing being asked of them —
+              two competing instructions, one of which does nothing. */}
+          {challenged ? (
+            <ChallengeBanner />
+          ) : (
+            <TrustBanner user={current} onVerified={setOverride} />
+          )}
 
           {/* Someone picked you. Above the fork on purpose: it is the only
               thing on this page that another person is waiting on. */}
@@ -211,10 +223,13 @@ function LoadingScreen() {
 /**
  * Verification state, and the button that changes it.
  *
- * The button is honest about being a stub: POST /api/verification/self grants
- * the trust stage with no evidence, and the server refuses to serve it in
- * production. When selfie and ID capture land, this button routes into that
- * flow instead and nothing else on this page changes.
+ * The button is honest about being a stub: POST /api/dev/verify grants the
+ * trust stage with no evidence, and the server does not mount /api/dev outside
+ * development at all. When selfie and ID capture land, this button routes into
+ * that flow instead and nothing else on this page changes.
+ *
+ * Three states, not two. A suspended account is also "not verified", and the
+ * difference matters: there is nothing it can do from here.
  */
 function TrustBanner({
   user,
@@ -224,12 +239,13 @@ function TrustBanner({
   onVerified: (user: User) => void;
 }) {
   const [pending, setPending] = useState(false);
-  const verified = user.trustStage !== 'new';
+  const verified = isVerified(user);
+  const suspended = isSuspended(user);
 
   const verify = useCallback(async () => {
     setPending(true);
     try {
-      onVerified(await api.selfVerify());
+      onVerified(await api.devVerify());
       toast.success('Verified — you can be matched now');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not verify you');
@@ -241,11 +257,20 @@ function TrustBanner({
   return (
     <section
       className={`border-l-2 p-5 transition-colors duration-500 ${
-        verified ? 'border-brand bg-brand-muted' : 'border-border bg-muted/40'
+        suspended
+          ? 'border-destructive bg-destructive/5'
+          : verified
+            ? 'border-brand bg-brand-muted'
+            : 'border-border bg-muted/40'
       }`}
     >
       <div className="flex items-start gap-4">
-        {verified ? (
+        {suspended ? (
+          <ShieldAlert
+            className="text-destructive mt-0.5 size-5 shrink-0"
+            strokeWidth={2}
+          />
+        ) : verified ? (
           <ShieldCheck className="text-brand mt-0.5 size-5 shrink-0" strokeWidth={2} />
         ) : (
           <ShieldAlert
@@ -256,16 +281,22 @@ function TrustBanner({
 
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">
-            {verified ? 'Verified student' : 'Not verified yet'}
+            {suspended
+              ? 'Account suspended'
+              : verified
+                ? 'Verified student'
+                : 'Not verified yet'}
           </p>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            {verified
-              ? `${user.university} · ${
-                  user.matchOpenToAll
-                    ? 'open to riders of any gender'
-                    : `matched only with ${user.gender} riders`
-                }`
-              : "You can look around, but you won't be matched until you verify."}
+            {suspended
+              ? 'A moderator has suspended this account, so you cannot be matched. Contact the Renki team if you think this is a mistake.'
+              : verified
+                ? `${user.university} · ${
+                    user.matchOpenToAll
+                      ? 'open to riders of any gender'
+                      : `matched only with ${user.gender} riders`
+                  }`
+                : "You can look around, but you won't be matched until you verify."}
           </p>
           {/* A banner that states a setting has to lead to the setting.
               Otherwise it reads as a fixed rule of the app, which is exactly
@@ -281,7 +312,10 @@ function TrustBanner({
         </div>
       </div>
 
-      {!verified && (
+      {/* Not `!verified`: a suspended account is also not verified, and
+          offering it a Verify button promises a way out that does not exist.
+          Only a moderator can lift a suspension. */}
+      {!verified && !suspended && (
         <div className="mt-5 space-y-2 pl-9">
           <Button onClick={() => void verify()} disabled={pending}>
             {pending ? (
@@ -297,8 +331,8 @@ function TrustBanner({
             )}
           </Button>
           <p className="text-muted-foreground text-xs">
-            Placeholder — this verifies instantly. The real flow will scan your face and
-            your student ID.
+            Development only — this verifies instantly and does not exist in production.
+            The real flow photographs your student ID and your face.
           </p>
         </div>
       )}

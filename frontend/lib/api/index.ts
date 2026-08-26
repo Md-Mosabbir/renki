@@ -25,11 +25,13 @@ export const api = {
   /** PATCH /api/auth/me — name and phone only; everything else is locked. */
   updateProfile: httpApi.updateProfile,
   /**
-   * POST /api/verification/self — REAL endpoint, PLACEHOLDER behaviour. It
-   * verifies with no evidence so the Verify button has something behind it, and
-   * the server refuses to serve it in production.
+   * POST /api/dev/verify — DEVELOPMENT ONLY, verifies with no evidence.
+   *
+   * Not mounted by the server outside development, so this 404s in production
+   * rather than relying on a handler to refuse. Deleted once the real capture
+   * and match flow lands.
    */
-  selfVerify: httpApi.selfVerify,
+  devVerify: httpApi.devVerify,
 
   // ---- REAL — served by backend/src/routes/friends.routes.ts ----
   /** GET /api/friends */
@@ -95,7 +97,24 @@ export const api = {
   /** POST /api/friends/block — the only way to block a stranger. */
   blockUser: reportsApi.blockUser,
 
+  // ---- REAL — served by backend/src/routes/verification.routes.ts ----
+  /**
+   * GET /api/verification/me — what a moderator is asking of me, or null.
+   *
+   * There is no "verify me" method and there is not meant to be. Renki checks
+   * nobody at signup; this exists only for a student who has been challenged.
+   */
+  myChallenge: reportsApi.myChallenge,
+  /** POST /api/verification/photo — multipart, answers an open challenge. */
+  submitChallengePhoto: reportsApi.submitChallengePhoto,
+
   // ---- REAL — served by backend/src/routes/admin.routes.ts (moderators) ----
+  /** GET /api/admin/challenges — cases awaiting a decision, oldest first. */
+  challengeQueue: reportsApi.challengeQueue,
+  /** POST /api/admin/challenges — ask a student to answer an allegation. */
+  issueChallenge: reportsApi.issueChallenge,
+  /** PATCH /api/admin/challenges/:id — rule; the photo is destroyed either way. */
+  resolveChallenge: reportsApi.resolveChallenge,
   /** GET /api/admin/reports — 404s for non-moderators, by design. */
   adminReports: reportsApi.adminReports,
   /** PATCH /api/admin/reports/:id */

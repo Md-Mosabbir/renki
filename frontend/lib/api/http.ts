@@ -2,16 +2,18 @@ import { ApiError } from './types';
 import type {
   AdminReportPage,
   AuthResult,
+  Challenge,
+  ChallengeCase,
   CreateGroupInput,
   Deck,
   Destination,
   DestinationInput,
-  IncomingMatch,
   FriendCandidate,
   FriendGraph,
   FriendLists,
   FriendResponseAction,
   Friendship,
+  IncomingMatch,
   MeetupCode,
   ProfileInput,
   ProfileUpdate,
@@ -55,7 +57,13 @@ async function request<T>(
   const { auth = false, headers, ...rest } = init;
 
   const finalHeaders = new Headers(headers);
-  if (rest.body !== undefined) {
+  // Every JSON caller below builds its body with JSON.stringify, so setting the
+  // header here rather than at 20 call sites is right — but FormData must be
+  // left alone. fetch generates a multipart Content-Type with a random
+  // boundary token, and setting the header ourselves overwrites it with one
+  // that has no boundary at all. The server then cannot split the parts and
+  // rejects the upload with an error that says nothing about why.
+  if (rest.body !== undefined && !(rest.body instanceof FormData)) {
     finalHeaders.set('Content-Type', 'application/json');
   }
   if (auth) {
@@ -165,14 +173,18 @@ export const httpApi = {
   },
 
   /**
-   * Verify the signed-in account.
+   * Verify the signed-in account with no evidence. DEVELOPMENT ONLY.
    *
-   * PLACEHOLDER on the server side: it verifies with no evidence, and refuses
-   * to run under NODE_ENV=production. When selfie + ID capture is built this
-   * method gains arguments and nothing else here changes.
+   * Points at `/api/dev/verify`, which the server does not mount outside
+   * development — so in production this is a 404 rather than a stub that has
+   * to remember to refuse. It replaced `/api/verification/self`, which was the
+   * same behaviour on a public route behind an env flag.
+   *
+   * Goes away entirely when capture and matching land; it is not the shape the
+   * real submit takes, which posts two images as multipart.
    */
-  async selfVerify(): Promise<User> {
-    const { user } = await request<{ user: User }>('/verification/self', {
+  async devVerify(): Promise<User> {
+    const { user } = await request<{ user: User }>('/dev/verify', {
       method: 'POST',
       auth: true,
     });
@@ -452,6 +464,72 @@ export const reportsApi = {
       auth: true,
       method: 'POST',
       body: JSON.stringify({ userId }),
+    });
+  },
+
+  /* ---------------- the gender challenge ---------------- */
+
+  /**
+   * What, if anything, is being asked of me.
+   *
+   * `null` is the normal answer and is a 200, not a 404 — nothing being asked
+   * of you is a state, not a missing resource.
+   */
+  async myChallenge(): Promise<Challenge | null> {
+    const { challenge } = await request<{ challenge: Challenge | null }>(
+      '/verification/me',
+      { auth: true }
+    );
+    return challenge;
+  },
+
+  /**
+   * Answer a challenge with one photo.
+   *
+   * FormData, NOT JSON — and `request()` leaves its Content-Type alone so fetch
+   * can generate the multipart boundary. Setting the header here would strip
+   * the boundary and the server could not split the parts.
+   */
+  async submitChallengePhoto(photo: Blob): Promise<Challenge> {
+    const form = new FormData();
+    form.append('photo', photo, 'photo.jpg');
+    const { challenge } = await request<{ challenge: Challenge }>('/verification/photo', {
+      auth: true,
+      method: 'POST',
+      body: form,
+    });
+    return challenge;
+  },
+
+  /** Moderator only. Cases awaiting a decision, oldest first. */
+  async challengeQueue(): Promise<ChallengeCase[]> {
+    const { cases } = await request<{ cases: ChallengeCase[] }>('/admin/challenges', {
+      auth: true,
+    });
+    return cases;
+  },
+
+  /**
+   * Moderator only. Ask a student to answer an allegation.
+   *
+   * Deliberately separate from reading the report that prompted it: a report
+   * alone must never compel somebody to photograph themselves.
+   */
+  async issueChallenge(userId: string, reportId?: string): Promise<Challenge> {
+    const { challenge } = await request<{ challenge: Challenge }>('/admin/challenges', {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify({ userId, reportId }),
+    });
+    return challenge;
+  },
+
+  /** Moderator only. Rule on a case; the photo is destroyed either way. */
+  async resolveChallenge(id: string, cleared: boolean, note?: string): Promise<void> {
+    await request<unknown>(`/admin/challenges/${id}`, {
+      auth: true,
+      method: 'PATCH',
+      body: JSON.stringify({ cleared, note }),
     });
   },
 

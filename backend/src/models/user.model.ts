@@ -9,8 +9,32 @@
  * of the change. `backend/schema.sql` is what to diff it against.
  */
 
-/** The three states of `users.trust_stage`. */
-export const TRUST_STAGES = ['new', 'verified', 'established'] as const;
+/**
+ * `chk_users_trust_stage`. Two of these are moves BACKWARDS, not rungs.
+ *
+ *   new          signed in and onboarded. May ride. The normal state.
+ *   verified     was challenged over their declared gender, and cleared.
+ *   established  reserved for completed-ride history. Nothing writes it yet.
+ *   challenged   a moderator has asked for a photo and is waiting. May not ride.
+ *   suspended    banned by a moderator. May not ride.
+ *
+ * 'challenged' and 'suspended' live in this union rather than in separate
+ * boolean columns because RIDEABLE_TRUST_STAGES and FRIENDABLE_TRUST_STAGES are
+ * allowlists — a new value is excluded by both without either being edited. A
+ * boolean would need a matching predicate at every query site, and missing one
+ * is exactly the silent-filter divergence this codebase keeps warning about.
+ *
+ * They are distinct from each other on purpose. Suspended is a judgement;
+ * challenged is a question nobody has answered yet, and the student clears it
+ * themselves simply by responding.
+ */
+export const TRUST_STAGES = [
+  'new',
+  'verified',
+  'established',
+  'challenged',
+  'suspended',
+] as const;
 export type TrustStage = (typeof TRUST_STAGES)[number];
 
 /** The three values `users.gender` permits (`chk_users_gender`). */
@@ -43,6 +67,16 @@ export interface UserRow {
    * so. An app that can promote its own users is an app where a bug can.
    */
   is_admin: boolean;
+  /**
+   * When the ID card on this row was captured.
+   *
+   * `id_card_image_url` above holds the object KEY in the private bucket, not
+   * a URL, despite the name — migration 17's column comment says so. Both are
+   * deliberately absent from `PublicUser`: this is the highest-consequence data
+   * Renki holds and it never leaves the API. Admin reads go through a
+   * short-lived signed URL minted per request and never persisted.
+   */
+  id_card_captured_at: Date | null;
   /**
    * Opt out of same-gender-only stranger matching.
    *

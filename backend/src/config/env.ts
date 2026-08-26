@@ -34,32 +34,36 @@ export const env = {
   jwtExpiresIn: required('JWT_EXPIRES_IN', '7d'),
   allowedEmailDomain: required('ALLOWED_EMAIL_DOMAIN', 'northsouth.edu'),
 
-  // Optional, and the only variable here that is allowed to be absent. Empty
-  // means "no Python face service configured", which selects the mock matcher
-  // — that is what lets `npm run dev` and CI run the whole verification flow
-  // with nothing else deployed. Set it and the real matcher takes over.
   /**
-   * Lets `POST /api/verification/self` grant `verified` outright.
+   * Private object storage for gender-challenge photos.
    *
-   * Defaults to ON in development and OFF everywhere else, so nothing changes
-   * locally and a deploy is closed by default. Setting it to 'true' in a
-   * deployed environment is a DELIBERATE, visible decision: it turns a stub
-   * into a one-request privilege escalation, where any signed-in account grants
-   * itself the trust stage that gender verification exists to gate.
+   * Optional, and empty means "no bucket configured", which selects the
+   * in-memory store — the same shape as every other swappable dependency here,
+   * and what lets `npm run dev` and CI run the whole challenge flow with
+   * nothing deployed.
    *
-   * It exists because the alternative is worse — with real verification
-   * unbuilt, a deployed instance has NO path to `verified`, and
-   * RIDEABLE_TRUST_STAGES then blocks every stranger ride. A demo where the
-   * main feature 404s teaches nobody anything. An env var that says out loud
-   * what has been switched off is better than quietly deleting the guard.
+   * NEVER prefixed NEXT_PUBLIC_. These keys bypass Supabase RLS entirely, and
+   * that prefix inlines a value into the browser bundle at build time.
    *
-   * Turn it off the day real verification ships.
+   * `storage.service.ts` throws at startup if these are unset in production, so
+   * the in-memory fallback cannot ship by accident: it would drop every photo
+   * on restart and silently empty the moderator queue.
    */
-  allowSelfVerify:
-    (process.env.ALLOW_SELF_VERIFY ?? String(nodeEnv !== 'production')) === 'true',
+  storageEndpoint: process.env.STORAGE_ENDPOINT ?? '',
+  // Must match the project's region exactly. SigV4 signs the region into the
+  // request, so a wrong one produces signed URLs that 403 with no useful error.
+  storageRegion: process.env.STORAGE_REGION ?? '',
+  storageBucket: process.env.STORAGE_BUCKET ?? '',
+  storageAccessKeyId: process.env.STORAGE_ACCESS_KEY_ID ?? '',
+  storageSecretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY ?? '',
 
-  faceApiUrl: process.env.FACE_API_URL ?? '',
-  faceApiSecret: process.env.FACE_API_SECRET ?? '',
+  /**
+   * How long a moderator's signed link to a challenge photo lives.
+   *
+   * Short because the admin page refetches rather than caching, and a link that
+   * outlives the page is a link that can be pasted somewhere it should not be.
+   */
+  signedUrlTtlSeconds: Number(process.env.SIGNED_URL_TTL_SECONDS ?? '300'),
 
   /**
    * The commit this instance is running, surfaced on /api/health.
