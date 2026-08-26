@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import type { Destination, FriendGraph } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Page } from '@/components/app-shell';
+import { AppShell, Page } from '@/components/app-shell';
 import { FriendPicker } from '@/components/groups/friend-picker';
 
 /**
@@ -103,109 +103,112 @@ export default function NewGroupPage() {
     selected.length > 0 && destinationId !== '' && departure !== '' && !sameEnds;
 
   return (
-    <Page>
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="text-muted-foreground hover:text-foreground mb-8 flex cursor-pointer items-center gap-2 text-sm"
-      >
-        <ArrowLeft className="size-4" />
-        Back
-      </button>
+    <AppShell>
+      <Page>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-muted-foreground hover:text-foreground mb-8 flex cursor-pointer items-center gap-2 text-sm"
+        >
+          <ArrowLeft className="size-4" />
+          Back
+        </button>
 
-      <h1 className="text-2xl font-medium tracking-tight">New group ride</h1>
-      <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-        Everyone in a group has to have met everyone else — not just you. People who have
-        not met someone you already picked are locked below.
-      </p>
-
-      {loadError !== null && (
-        <p className="border-border text-muted-foreground mt-8 border-l-2 py-1 pl-4 text-sm">
-          {loadError}
+        <h1 className="text-2xl font-medium tracking-tight">New group ride</h1>
+        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+          Everyone in a group has to have met everyone else — not just you. People who
+          have not met someone you already picked are locked below.
         </p>
-      )}
 
-      {graph === null && loadError === null && (
-        <p className="text-muted-foreground mt-8 text-sm">Loading your friends…</p>
-      )}
-
-      {graph !== null && (
-        <div className="mt-10 space-y-10">
-          <section>
-            <div className="mb-3 flex items-baseline justify-between">
-              <Label className="text-xs font-medium tracking-widest uppercase">
-                Who is coming
-              </Label>
-              <span className="text-muted-foreground text-xs tabular-nums">
-                {selected.length + 1} / {MAX_OTHERS + 1}
-              </span>
-            </div>
-            <FriendPicker
-              graph={graph}
-              selected={selected}
-              onToggle={toggle}
-              maxOthers={MAX_OTHERS}
-            />
-          </section>
-
-          <section className="grid gap-6 sm:grid-cols-2">
-            <PlaceSelect
-              id="origin"
-              label="From"
-              value={originId}
-              onChange={setOriginId}
-              options={destinations}
-            />
-            <PlaceSelect
-              id="destination"
-              label="To"
-              value={destinationId}
-              onChange={setDestinationId}
-              options={destinations}
-            />
-            {sameEnds && (
-              <p className="text-muted-foreground text-xs sm:col-span-2">
-                Pick two different places — a ride has to go somewhere else.
-              </p>
-            )}
-          </section>
-
-          <section className="space-y-2">
-            <Label
-              htmlFor="departure"
-              className="text-xs font-medium tracking-widest uppercase"
-            >
-              When
-            </Label>
-            <input
-              id="departure"
-              type="datetime-local"
-              value={departure}
-              onChange={(event) => setDeparture(event.target.value)}
-              className="border-border h-12 w-full border-0 border-b-2 bg-transparent text-base focus-visible:ring-0 focus-visible:outline-none"
-            />
-          </section>
-
-          <Button
-            size="lg"
-            disabled={!ready || pending}
-            onClick={() => void submit()}
-            className="h-14 w-full justify-between rounded-none text-base"
-          >
-            {pending ? 'Sending invitations…' : 'Send invitations'}
-            {pending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Users className="size-4" />
-            )}
-          </Button>
-
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Nobody is in the group until they accept. One decline cancels it for everyone.
+        {loadError !== null && (
+          <p className="border-border text-muted-foreground mt-8 border-l-2 py-1 pl-4 text-sm">
+            {loadError}
           </p>
-        </div>
-      )}
-    </Page>
+        )}
+
+        {graph === null && loadError === null && (
+          <p className="text-muted-foreground mt-8 text-sm">Loading your friends…</p>
+        )}
+
+        {graph !== null && (
+          <div className="mt-10 space-y-10">
+            <section>
+              <div className="mb-3 flex items-baseline justify-between">
+                <Label className="text-xs font-medium tracking-widest uppercase">
+                  Who is coming
+                </Label>
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {selected.length + 1} / {MAX_OTHERS + 1}
+                </span>
+              </div>
+              <FriendPicker
+                graph={graph}
+                selected={selected}
+                onToggle={toggle}
+                maxOthers={MAX_OTHERS}
+              />
+            </section>
+
+            <section className="grid gap-6 sm:grid-cols-2">
+              <PlaceSelect
+                id="origin"
+                label="From"
+                value={originId}
+                onChange={setOriginId}
+                options={destinations}
+              />
+              <PlaceSelect
+                id="destination"
+                label="To"
+                value={destinationId}
+                onChange={setDestinationId}
+                options={destinations}
+              />
+              {sameEnds && (
+                <p className="text-muted-foreground text-xs sm:col-span-2">
+                  Pick two different places — a ride has to go somewhere else.
+                </p>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <Label
+                htmlFor="departure"
+                className="text-xs font-medium tracking-widest uppercase"
+              >
+                When
+              </Label>
+              <input
+                id="departure"
+                type="datetime-local"
+                value={departure}
+                onChange={(event) => setDeparture(event.target.value)}
+                className="border-border h-12 w-full border-0 border-b-2 bg-transparent text-base focus-visible:ring-0 focus-visible:outline-none"
+              />
+            </section>
+
+            <Button
+              size="lg"
+              disabled={!ready || pending}
+              onClick={() => void submit()}
+              className="h-14 w-full justify-between rounded-none text-base"
+            >
+              {pending ? 'Sending invitations…' : 'Send invitations'}
+              {pending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Users className="size-4" />
+              )}
+            </Button>
+
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Nobody is in the group until they accept. One decline cancels it for
+              everyone.
+            </p>
+          </div>
+        )}
+      </Page>
+    </AppShell>
   );
 }
 

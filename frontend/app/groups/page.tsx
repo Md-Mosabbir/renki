@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api';
 import type { Destination, RideGroup, User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Page } from '@/components/app-shell';
+import { AppShell, Page } from '@/components/app-shell';
 import { GroupCard } from '@/components/groups/group-card';
 
 /**
@@ -140,89 +140,91 @@ export default function GroupsPage() {
   const rest = (groups ?? []).filter((group) => !needsMe.includes(group));
 
   return (
-    <Page>
-      <header className="mb-10 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-medium tracking-tight">Groups</h1>
-          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-            Ride with people you have already met. Everyone in a group has met everyone
-            else.
+    <AppShell>
+      <Page>
+        <header className="mb-10 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-medium tracking-tight">Groups</h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+              Ride with people you have already met. Everyone in a group has met everyone
+              else.
+            </p>
+          </div>
+
+          <Button asChild size="sm" className="shrink-0 rounded-none">
+            <Link href="/groups/new">
+              <Plus className="size-4" />
+              New
+            </Link>
+          </Button>
+        </header>
+
+        {error !== null && (
+          <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm">
+            {error}
           </p>
-        </div>
+        )}
 
-        <Button asChild size="sm" className="shrink-0 rounded-none">
-          <Link href="/groups/new">
-            <Plus className="size-4" />
-            New
-          </Link>
-        </Button>
-      </header>
+        {groups === null && error === null && (
+          <p className="text-muted-foreground text-sm">Loading…</p>
+        )}
 
-      {error !== null && (
-        <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm">
-          {error}
-        </p>
-      )}
+        {groups !== null && groups.length === 0 && (
+          <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
+            No group rides yet. Create one and everyone you invite has to accept before it
+            becomes a ride.
+          </p>
+        )}
 
-      {groups === null && error === null && (
-        <p className="text-muted-foreground text-sm">Loading…</p>
-      )}
-
-      {groups !== null && groups.length === 0 && (
-        <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
-          No group rides yet. Create one and everyone you invite has to accept before it
-          becomes a ride.
-        </p>
-      )}
-
-      {needsMe.length > 0 && (
-        <section className="mb-12">
-          <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
-            Waiting for your answer
-          </h2>
-          <div className="space-y-2">
-            {needsMe.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                viewerId={viewerId}
-                origin={byId.get(group.originLocationId)}
-                destination={byId.get(group.destinationLocationId)}
-                onRespond={respond}
-                onComplete={complete}
-                onCancel={cancel}
-                pending={respondingTo === group.id}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {rest.length > 0 && (
-        <section>
-          {needsMe.length > 0 && (
+        {needsMe.length > 0 && (
+          <section className="mb-12">
             <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
-              Your rides
+              Waiting for your answer
             </h2>
-          )}
-          <div className="space-y-2">
-            {rest.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                viewerId={viewerId}
-                origin={byId.get(group.originLocationId)}
-                destination={byId.get(group.destinationLocationId)}
-                onRespond={respond}
-                onComplete={complete}
-                onCancel={cancel}
-                pending={respondingTo === group.id}
-                highlighted={group.id === highlight}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-    </Page>
+            <div className="space-y-2">
+              {needsMe.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  viewerId={viewerId}
+                  origin={byId.get(group.originLocationId)}
+                  destination={byId.get(group.destinationLocationId)}
+                  onRespond={respond}
+                  onComplete={complete}
+                  onCancel={cancel}
+                  pending={respondingTo === group.id}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {rest.length > 0 && (
+          <section>
+            {needsMe.length > 0 && (
+              <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
+                Your rides
+              </h2>
+            )}
+            <div className="space-y-2">
+              {rest.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  viewerId={viewerId}
+                  origin={byId.get(group.originLocationId)}
+                  destination={byId.get(group.destinationLocationId)}
+                  onRespond={respond}
+                  onComplete={complete}
+                  onCancel={cancel}
+                  pending={respondingTo === group.id}
+                  highlighted={group.id === highlight}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </Page>
+    </AppShell>
   );
 }
