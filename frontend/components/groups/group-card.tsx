@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ReportPanel } from '@/components/reports/report-panel';
+import { RideHandoff } from '@/components/rides/ride-handoff';
 
 /**
  * One ride group.
@@ -163,6 +164,7 @@ export function GroupCard({
             </Link>
           </Button>
           <CancelButton groupId={group.id} pending={pending} onCancel={onCancel} />
+          <RideHandoff origin={origin} destination={destination} />
         </div>
       )}
 
@@ -179,6 +181,7 @@ export function GroupCard({
             Finish ride
           </Button>
           <CancelButton groupId={group.id} pending={pending} onCancel={onCancel} />
+          <RideHandoff origin={origin} destination={destination} />
           <span className="text-muted-foreground text-xs">
             Started {group.startedAt === null ? '' : formatTime(group.startedAt)}
           </span>
