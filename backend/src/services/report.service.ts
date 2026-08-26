@@ -10,6 +10,7 @@ import type {
 } from '../models/report.model.js';
 import { toPublicReport } from '../models/report.model.js';
 import { HttpError } from '../utils/http-error.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * SERVICE — filing and triaging reports.
@@ -52,7 +53,7 @@ export async function createReport(
     throw new HttpError(400, 'You cannot report yourself');
   }
 
-  return transaction(async (client) => {
+  const report = await transaction(async (client) => {
     const reported = await loadReportableUser(client, userId, input.reportedUserId);
 
     // A ride id is accepted only if BOTH of them were on it. Otherwise a
@@ -94,6 +95,23 @@ export async function createReport(
     }
     return toPublicReport(created, reported.name);
   });
+
+  // Moderators, after the commit. The audience is looked up here rather than
+  // passed in because "who is an admin" is not something the reporter knows or
+  // should learn — and the notification names nobody, since who reported whom
+  // is exactly what must not sit on a lock screen.
+  const { rows: admins } = await query<{ id: string }>(
+    `SELECT id FROM users WHERE is_admin = TRUE AND id <> $1`,
+    [userId]
+  );
+
+  await eventBus.publish({
+    name: 'report.filed',
+    actorId: userId,
+    audience: admins.map((row) => row.id),
+  });
+
+  return report;
 }
 
 /** The reports I have filed. Mine only — never reports ABOUT me. */

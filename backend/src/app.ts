@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import routes from './routes/index.js';
+import { registerSubscribers } from './events/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
 /**
@@ -20,6 +21,12 @@ export function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(morgan(env.isProduction ? 'combined' : 'dev'));
+
+  // --- Observers ---
+  //
+  // Here and not in server.ts, which only binds a port — tests build the app
+  // without ever listening, and they need the listeners wired too.
+  registerSubscribers();
 
   // --- Routes ---
   app.get('/', (_req, res) => {

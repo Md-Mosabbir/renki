@@ -4,6 +4,7 @@ import type { PoolClient } from 'pg';
 import { transaction } from '../db/pool.js';
 import type { GroupMemberRow, RideGroupRow } from '../models/ride-group.model.js';
 import { HttpError } from '../utils/http-error.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * SERVICE — a ride from "we are both here" to "that is done".
@@ -100,6 +101,19 @@ export async function issueStartCode(
   });
 }
 
+/**
+ * Everyone on the ride except the person who did the thing.
+ *
+ * `chk_notifications_not_self` rejects a row whose actor is its recipient, so
+ * forgetting this filter is a crash rather than a student being quietly told
+ * that they cancelled their own ride.
+ */
+function accepted(members: GroupMemberRow[], actorId: string): string[] {
+  return members
+    .filter((m) => m.invite_status === 'accepted' && m.user_id !== actorId)
+    .map((m) => m.user_id);
+}
+
 export interface StartedRide {
   group: RideGroupRow;
   members: GroupMemberRow[];
@@ -121,7 +135,7 @@ export async function redeemStartCode(
     throw new HttpError(400, 'code is required');
   }
 
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const { rows } = await client.query<{
       id: string;
       ride_group_id: string;
@@ -177,6 +191,17 @@ export async function redeemStartCode(
 
     return { group: started, members: await loadMembers(client, group.id) };
   });
+
+  // Published AFTER the transaction commits, never inside it. Publishing early
+  // and then rolling back tells people about a ride that does not exist.
+  await eventBus.publish({
+    name: 'ride.started',
+    actorId: userId,
+    audience: accepted(result.members, userId),
+    rideGroupId: result.group.id,
+  });
+
+  return result;
 }
 
 /**
@@ -190,7 +215,7 @@ export async function completeRide(
   userId: string,
   groupId: string
 ): Promise<StartedRide> {
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const group = await loadGroupForMember(client, groupId, userId, true);
 
     if (group.status === 'completed') {
@@ -216,6 +241,17 @@ export async function completeRide(
 
     return { group: completed, members: await loadMembers(client, groupId) };
   });
+
+  // Published AFTER the transaction commits, never inside it. Publishing early
+  // and then rolling back tells people about a ride that does not exist.
+  await eventBus.publish({
+    name: 'ride.completed',
+    actorId: userId,
+    audience: accepted(result.members, userId),
+    rideGroupId: result.group.id,
+  });
+
+  return result;
 }
 
 /**
@@ -239,7 +275,7 @@ export async function completeRide(
  * `ride_histories` is deliberately NOT written here. Nothing was shared.
  */
 export async function cancelRide(userId: string, groupId: string): Promise<StartedRide> {
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const group = await loadGroupForMember(client, groupId, userId, true);
 
     if (group.status === 'cancelled') {
@@ -286,6 +322,17 @@ export async function cancelRide(userId: string, groupId: string): Promise<Start
 
     return { group: cancelled, members: await loadMembers(client, groupId) };
   });
+
+  // Published AFTER the transaction commits, never inside it. Publishing early
+  // and then rolling back tells people about a ride that does not exist.
+  await eventBus.publish({
+    name: 'ride.cancelled',
+    actorId: userId,
+    audience: accepted(result.members, userId),
+    rideGroupId: result.group.id,
+  });
+
+  return result;
 }
 
 /**

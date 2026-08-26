@@ -8,6 +8,7 @@ import type {
 } from '../models/ride-group.model.js';
 import type { Gender, TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * SERVICE — friends-formed ride groups.
@@ -79,7 +80,7 @@ export async function createFriendGroup(
 
   const departureTime = parseDepartureTime(input.departureTime);
 
-  return transaction(async (client) => {
+  const created = await transaction(async (client) => {
     const people = await loadMembers(client, members);
 
     if (people.size !== members.length) {
@@ -152,6 +153,16 @@ export async function createFriendGroup(
 
     return { group, members: await loadGroupMembers(client, group.id) };
   });
+
+  // After the commit. Every invitee, never the organiser — they already know.
+  await eventBus.publish({
+    name: 'group.invited',
+    actorId: creatorId,
+    audience: friendIds,
+    rideGroupId: created.group.id,
+  });
+
+  return created;
 }
 
 /**
@@ -167,7 +178,7 @@ export async function respondToGroupInvite(
   groupId: string,
   accept: boolean
 ): Promise<{ group: RideGroupRow; members: GroupMemberRow[] }> {
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     const { rows } = await client.query<RideGroupRow>(
       `SELECT ${GROUP_COLUMNS} FROM ride_groups WHERE id = $1 FOR UPDATE`,
       [groupId]
@@ -177,6 +188,11 @@ export async function respondToGroupInvite(
     if (!group) {
       throw new HttpError(404, 'Ride group not found');
     }
+
+    // Read under the same FOR UPDATE lock that guards the write below, so
+    // "was it already matched before I answered" cannot race another invitee
+    // accepting at the same moment.
+    const before = group.status;
 
     const { rows: invites } = await client.query<{ status: string }>(
       `SELECT status FROM ride_group_invites
@@ -233,8 +249,30 @@ export async function respondToGroupInvite(
       throw new HttpError(500, 'Ride group disappeared mid-update');
     }
 
-    return { group: updated, members: await loadGroupMembers(client, groupId) };
+    return {
+      group: updated,
+      members: await loadGroupMembers(client, groupId),
+      // Captured inside the transaction: 'matched' means THIS response was the
+      // last one outstanding. Re-reading the status afterwards could not tell
+      // the difference between "I completed it" and "it was already complete".
+      justCompleted: updated.status === 'matched' && before !== 'matched',
+    };
   });
+
+  if (result.justCompleted) {
+    await eventBus.publish({
+      name: 'group.ready',
+      actorId: userId,
+      // Everyone else who accepted. The person who just tapped accept is
+      // looking at the screen that says so.
+      audience: result.members
+        .filter((m) => m.invite_status === 'accepted' && m.user_id !== userId)
+        .map((m) => m.user_id),
+      rideGroupId: groupId,
+    });
+  }
+
+  return { group: result.group, members: result.members };
 }
 
 /** Every group the student is invited to or already in. */

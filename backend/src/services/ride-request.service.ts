@@ -4,6 +4,7 @@ import { latLngToCell } from 'h3-js';
 import { query, transaction } from '../db/pool.js';
 import type { GroupMemberRow, RideGroupRow } from '../models/ride-group.model.js';
 import { HttpError } from '../utils/http-error.js';
+import { eventBus } from '../events/index.js';
 import { H3_RESOLUTION, selectStrategy } from './matching/index.js';
 import type { MatchCandidate } from './matching/index.js';
 
@@ -437,7 +438,7 @@ export async function swipe(
     throw new HttpError(400, 'You cannot match with your own request');
   }
 
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     // Same reason as dealDeck: a card can sit on screen longer than the search
     // it was dealt from lives.
     await expireStaleRequests(client, userId);
@@ -498,7 +499,7 @@ export async function swipe(
     }
 
     if (!accept) {
-      return { outcome: 'declined' as const };
+      return { outcome: 'declined' as const, otherUserId: theirs.user_id };
     }
 
     const theirAnswer = isA ? proposal.response_b : proposal.response_a;
@@ -508,12 +509,34 @@ export async function swipe(
           WHERE id IN ($1, $2) AND status = 'pending'`,
         [firstId, secondId]
       );
-      return { outcome: 'waiting' as const };
+      return { outcome: 'waiting' as const, otherUserId: theirs.user_id };
     }
 
     const group = await createMatchedGroup(client, mine, theirs);
-    return { outcome: 'matched' as const, group };
+    return { outcome: 'matched' as const, group, otherUserId: theirs.user_id };
   });
+
+  // After the commit, and only for the two outcomes that mean something to the
+  // OTHER person. A decline tells them nothing — deliberately: being notified
+  // that somebody looked at your card and said no is a feature nobody asked for.
+  if (result.outcome === 'waiting') {
+    await eventBus.publish({
+      name: 'ride.swipeReceived',
+      actorId: userId,
+      audience: [result.otherUserId],
+    });
+  } else if (result.outcome === 'matched') {
+    await eventBus.publish({
+      name: 'ride.matched',
+      actorId: userId,
+      // Them alone. The person who just swiped is watching the screen that
+      // already says "matched".
+      audience: [result.otherUserId],
+      rideGroupId: result.group.group.id,
+    });
+  }
+
+  return result;
 }
 
 /**

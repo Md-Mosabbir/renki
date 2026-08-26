@@ -16,6 +16,7 @@ import {
 } from '../models/friendship.model.js';
 import type { Gender, TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * SERVICE — every statement touching `friendships` and `friend_meetups`.
@@ -434,6 +435,15 @@ export async function requestFriendship(
   if (!inserted) {
     throw new HttpError(500, 'Failed to create the friend request');
   }
+
+  await eventBus.publish({
+    name: 'friend.requested',
+    actorId: userId,
+    // The addressee alone. A request is addressed to one person.
+    audience: [targetUserId],
+    friendshipId: inserted.id,
+  });
+
   return findFriendshipForUser(inserted.id, userId);
 }
 
@@ -727,7 +737,7 @@ export async function redeemMeetupCode(
     throw new HttpError(400, 'A code is required');
   }
 
-  const friendshipId = await transaction(async (client) => {
+  const confirmed = await transaction(async (client) => {
     // `expired` is computed by Postgres, not by comparing to a Date in Node.
     // The API server's clock and the database's can disagree, and the row's own
     // notion of "now" is the one the expiry was written against.
@@ -803,10 +813,23 @@ export async function redeemMeetupCode(
       [row.meetup_id, userId]
     );
 
-    return row.id;
+    return {
+      id: row.id,
+      other: row.requester_id === userId ? row.addressee_id : row.requester_id,
+    };
   });
 
-  return findFriendshipForUser(friendshipId, userId);
+  // After the transaction. The scan is the moment the friendship becomes real,
+  // and the OTHER party is the one who learns something they did not already
+  // know — the scanner is holding the phone that just did it.
+  await eventBus.publish({
+    name: 'friend.confirmed',
+    actorId: userId,
+    audience: [confirmed.other],
+    friendshipId: confirmed.id,
+  });
+
+  return findFriendshipForUser(confirmed.id, userId);
 }
 
 /**
