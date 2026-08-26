@@ -786,62 +786,71 @@ them would make every future `add` produce a spurious diff.
 
 ## CI / CD
 
-Three workflows. Two run the checks, one releases.
+**GitHub runs the checks. Render and Vercel run the release.** Two workflows,
+plus a scheduled smoke test. There is no deploy workflow and no manual step:
+a push to `main` deploys, the way it does on every other project.
 
-| Workflow          | Triggers                        | Jobs                                      |
-| ----------------- | ------------------------------- | ----------------------------------------- |
-| `backend-ci.yml`  | PR into `main`, `workflow_call` | lint, typecheck, build, test; Docker boot |
-| `frontend-ci.yml` | PR into `main`, `workflow_call` | lint, typecheck, build; Docker boot       |
-| `deploy.yml`      | push to `main`                  | detect changes → verify → deploy → smoke  |
+| Workflow          | Triggers                              | Does                                      |
+| ----------------- | ------------------------------------- | ----------------------------------------- |
+| `backend-ci.yml`  | push + PR into `main` (path-filtered) | lint, typecheck, build, test; Docker boot |
+| `frontend-ci.yml` | push + PR into `main` (path-filtered) | lint, typecheck, build; Docker boot       |
+| `smoke.yml`       | daily cron, `workflow_dispatch`       | asserts things about the LIVE site        |
 
-The two CI workflows are path-filtered so a change to one workspace never pays
-for the other's run. Both also watch the root `package.json` and
-`package-lock.json`, and both run the root `format:check`, which covers every
-workspace. Keep `frontend/` work out of the backend workflow's path filter and
-vice versa — that separation is what keeps the monorepo's CI cheap.
+Both CI workflows are path-filtered so a change to one workspace never pays for
+the other's run, and both also watch the root `package.json` /
+`package-lock.json` and run the root `format:check`, which covers every
+workspace. Keep `frontend/` work out of the backend filter and vice versa.
 
-**Neither CI workflow triggers on a push to `main` any more.** `deploy.yml`
-owns main: it diffs the push, calls the CI workflows for the workspaces that
-actually changed, and then releases. Adding a `push: main` trigger back would
-run every check twice per merge.
+**This replaced a gated `deploy.yml`, and the reason it went is worth keeping.**
+That workflow diffed the push to decide which workspaces to release, called the
+CI workflows for those, then deployed backend-before-frontend and smoke-tested
+the result. It was better in theory and it failed in the worst possible way:
 
-**The point of `deploy.yml` is the gate, not the deployment.** Render and Vercel
-both deploy on a git push by themselves — what they will not do is wait to find
-out whether the commit was any good. A red build shipped exactly as fast as a
-green one. So `deploy.yml` **replaces** those integrations, and both must have
-auto-deploy turned **OFF**. Leaving one on is not redundancy: it is the ungated
-deploy this exists to remove, and it wins the race every time.
+`git diff --name-only HEAD^ HEAD` reads only the TIP commit. A push carrying a
+large backend feature followed by a one-line frontend fix reported
+`backend=false`. The API was never released. Every job passed or skipped, so
+the run went **green**, and the smoke test agreed — because the OLD instance was
+still up and answering perfectly. The result was a new frontend calling
+endpoints that had never shipped: precisely the state the `needs:` ordering
+existed to prevent, arrived at by skipping the deploy rather than mis-ordering
+it.
 
-**Backend before frontend, always.** A frontend build that expects a field the
-deployed API does not return yet renders `undefined` to real users. Nothing
-technically couples the two deploys, so the ordering is enforced by `needs:`.
+**The lesson is not "fix the diff".** The diff was fixable in four lines. What
+was not fixable is that a pipeline which can silently decide to do nothing, and
+report success for it, is worse than no pipeline — you stop watching, because
+green means shipped. Platform auto-deploy cannot skip: a push either deploys or
+visibly fails.
 
-**`always()` with explicit result checks, not bare `needs:`.** A skipped job
-reports `skipped`, not `success`, and a frontend-only commit legitimately skips
-the backend checks — so a plain `needs:` would block every single-workspace
-release. The `!= 'failure'` clauses are what actually gate.
+**What was genuinely given up, stated plainly:**
 
-**`/api/health` reports the commit it is running, and that is a deploy gate not
-a diagnostic.** Polling for `status: ok` after triggering a deploy passes
-immediately — against the OLD instance, which is still healthily serving
-traffic. A deploy that never landed would be indistinguishable from one that
-did. `env.gitCommit` comes from `RENDER_GIT_COMMIT`, and the workflow waits for
-its own SHA. Vercel gets the weaker "does it answer" check, because its deploy
-hook returns as soon as the build is queued and there is no equivalent to
-compare against.
+- **The gate.** A red build now ships as fast as a green one. **Branch
+  protection on `main`, requiring both CI checks, is what puts it back** — the
+  merge is refused while the PR is red. Without that, this setup has no gate at
+  all. Pushing straight to `main` bypasses it by definition.
+- **The ordering.** `deploy.yml` deployed the backend first so a frontend could
+  never call an endpoint that was not live yet. Render and Vercel now deploy in
+  parallel and there is a window, usually under a minute, where the new frontend
+  is talking to the old API. Ship API changes ahead of the frontend that needs
+  them, in a separate push, when the difference matters.
+- **The deploy gate on `/api/health`.** `env.gitCommit` still reports the running
+  commit from `RENDER_GIT_COMMIT`, and it is still the only reliable way to tell
+  whether a deploy actually landed — polling for `status: ok` passes instantly
+  against the old instance. Nothing polls it automatically any more; check it by
+  hand after a deploy that matters.
 
-**Migrations run in the Render start command, not in CI.** Same environment,
-same `DATABASE_URL`, and no way to deploy while forgetting them. A migration
-step in the workflow would need production database credentials in GitHub for
-no gain.
+**`smoke.yml` keeps the three assertions that no unit test can make**, because
+each is about how production is CONFIGURED and each passes locally while being
+wrong live: `/api/health` answers, `/api/friends` 401s for an anonymous caller,
+and `POST /api/dev/login` **404s**. That last one is the important one —
+`routes/index.ts` mounts `/api/dev` only when `NODE_ENV` is not production, and
+a mistake there is a log-in-as-anyone endpoint on the public internet. It runs
+daily rather than per-deploy, so it can no longer prevent that, only report it.
 
-**The smoke test's most important line is the one asserting `/api/dev/login`
-returns 404.** `routes/index.ts` mounts `/api/dev` only when `NODE_ENV` is not
-production; a mistake there is a log-in-as-anyone endpoint on the public
-internet, and no unit test can catch it because the mount is environmental.
+**Migrations run in the Render start command**, not in CI. Same environment,
+same `DATABASE_URL`, no way to deploy while forgetting them. A migration step in
+a workflow would need production database credentials in GitHub for no gain.
 
-Setup this assumes — secrets `RENDER_DEPLOY_HOOK_URL` and
-`VERCEL_DEPLOY_HOOK_URL`, variables `PRODUCTION_API_URL` and
-`PRODUCTION_WEB_URL` — is documented at the bottom of `deploy.yml`. A missing
-one fails the run with a message saying which, rather than deploying nothing
-quietly.
+Setup this assumes: repository variable `PRODUCTION_API_URL` for the smoke test,
+and **auto-deploy ON** for both Render and Vercel — the opposite of what the old
+workflow required. If either is off, that half of the app silently stops
+releasing.

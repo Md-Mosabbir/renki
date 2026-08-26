@@ -4,9 +4,20 @@ name: Backend CI
 # never triggers this run — that is what keeps the monorepo from making every
 # push pay for every project's CI.
 on:
-  # No `push: main` trigger. deploy.yml owns main: it works out which
-  # workspaces a commit touched and calls this workflow for those, so a push
-  # runs these checks exactly once instead of once here and once there.
+  # Both triggers, same filter. Render and Vercel own the RELEASE — each
+  # deploys on a push to main through its own git integration — so this
+  # workflow's job is to say whether what landed was any good, not to gate it.
+  #
+  # That means a red main is possible: the platform ships as fast as it ever
+  # did and this run goes red afterwards. Branch protection on main is what
+  # closes that, by refusing the merge while the PR run is red.
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches: [main]
     paths:
@@ -15,14 +26,9 @@ on:
       - 'package-lock.json'
       - '.github/workflows/backend-ci.yml'
   workflow_dispatch:
-  # Callable by deploy.yml, which is what gates a release on these checks.
-  # A called workflow ignores the path filters above — deploy.yml decides for
-  # itself which workspaces a commit actually touched and calls only those.
-  workflow_call:
 
 # A second push to the same branch cancels the first run still in flight.
-# Never cancel on main — those runs are the record of what actually landed, and
-# on main this workflow is a step inside a deploy.
+# Never cancel on main — those runs are the record of what actually landed.
 concurrency:
   group: backend-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
