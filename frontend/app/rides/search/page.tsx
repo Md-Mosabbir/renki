@@ -8,11 +8,19 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import { useSession } from '@/lib/use-session';
-import type { Deck, DeckCard, Destination, RideRequest } from '@/lib/api';
+import type {
+  Deck,
+  DeckCard,
+  Destination,
+  DestinationInput,
+  RideRequest,
+} from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { SwipeDeck } from '@/components/rides/swipe-deck';
+import { PinPicker } from '@/components/map/pin-picker';
+import type { PinValue } from '@/components/map/pin-picker';
 
 /**
  * Find a ride with a stranger.
@@ -46,6 +54,17 @@ export default function StrangerSearchPage() {
 
   const [originId, setOriginId] = useState('');
   const [destinationId, setDestinationId] = useState('');
+
+  /**
+   * Two ways to answer "where to", and they are not the same request.
+   *
+   * A saved landmark sends its `locationId` so the existing row is reused; a
+   * pin sends coordinates and `resolveDestination` inserts a new one. Collapsing
+   * the two — treating a chosen landmark as just another pin — would insert a
+   * duplicate `locations` row on every search for the same five places.
+   */
+  const [destinationMode, setDestinationMode] = useState<'saved' | 'pin'>('pin');
+  const [pin, setPin] = useState<PinValue | null>(null);
   const [departure, setDeparture] = useState(defaultDeparture);
 
   const loadDeck = useCallback((requestId: string) => {
@@ -94,12 +113,20 @@ export default function StrangerSearchPage() {
 
   const startSearch = useCallback(() => {
     setBusy(true);
+    const destination: DestinationInput =
+      destinationMode === 'pin' && pin !== null
+        ? {
+            latitude: pin.latitude,
+            longitude: pin.longitude,
+            // '' would be stored verbatim and render as "Unnamed" on a card.
+            // Undefined becomes NULL, which is the honest value for a pin the
+            // geocoder could not name.
+            address: pin.address === '' ? undefined : pin.address,
+          }
+        : { locationId: destinationId };
+
     api
-      .createRideRequest(
-        { locationId: destinationId },
-        new Date(departure).toISOString(),
-        originId
-      )
+      .createRideRequest(destination, new Date(departure).toISOString(), originId)
       .then((created) => {
         setRequest(created);
         loadDeck(created.id);
@@ -110,7 +137,7 @@ export default function StrangerSearchPage() {
       .finally(() => {
         setBusy(false);
       });
-  }, [originId, destinationId, departure, loadDeck]);
+  }, [originId, destinationId, destinationMode, pin, departure, loadDeck]);
 
   const answer = useCallback(
     (card: DeckCard, accept: boolean) => {
@@ -241,28 +268,55 @@ export default function StrangerSearchPage() {
                 </select>
               </div>
 
-              <div className="space-y-2">
-                <Label
-                  htmlFor="destination"
-                  className="text-xs font-medium tracking-widest uppercase"
-                >
-                  To
-                </Label>
-                <select
-                  id="destination"
-                  value={destinationId}
-                  onChange={(event) => setDestinationId(event.target.value)}
-                  className="border-border h-12 w-full cursor-pointer border-0 border-b-2 bg-transparent text-base focus-visible:ring-0 focus-visible:outline-none"
-                >
-                  {destinations
-                    .filter((place) => place.kind !== 'campus')
-                    .map((place) => (
-                      <option key={place.id} value={place.id}>
-                        {place.label}
-                        {place.area !== '' ? ` — ${place.area}` : ''}
-                      </option>
+              <div className="space-y-3">
+                <div className="flex items-baseline justify-between gap-4">
+                  <Label className="text-xs font-medium tracking-widest uppercase">
+                    To
+                  </Label>
+
+                  {/* Both modes stay reachable. The saved list is faster for the
+                      five places most rides go to; the pin is the only way to
+                      say anywhere else, and the only one proximity matching can
+                      do anything interesting with. */}
+                  <div className="flex gap-4 text-xs">
+                    {(['pin', 'saved'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setDestinationMode(mode)}
+                        aria-pressed={destinationMode === mode}
+                        className={`cursor-pointer border-b-2 pb-0.5 transition-colors ${
+                          destinationMode === mode
+                            ? 'border-brand text-foreground'
+                            : 'text-muted-foreground hover:text-foreground border-transparent'
+                        }`}
+                      >
+                        {mode === 'pin' ? 'Drop a pin' : 'Saved places'}
+                      </button>
                     ))}
-                </select>
+                  </div>
+                </div>
+
+                {destinationMode === 'pin' ? (
+                  <PinPicker value={pin} onChange={setPin} />
+                ) : (
+                  <select
+                    id="destination"
+                    aria-label="Destination"
+                    value={destinationId}
+                    onChange={(event) => setDestinationId(event.target.value)}
+                    className="border-border h-12 w-full cursor-pointer border-0 border-b-2 bg-transparent text-base focus-visible:ring-0 focus-visible:outline-none"
+                  >
+                    {destinations
+                      .filter((place) => place.kind !== 'campus')
+                      .map((place) => (
+                        <option key={place.id} value={place.id}>
+                          {place.label}
+                          {place.area !== '' ? ` — ${place.area}` : ''}
+                        </option>
+                      ))}
+                  </select>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -283,7 +337,10 @@ export default function StrangerSearchPage() {
 
               <Button
                 size="lg"
-                disabled={busy || destinationId === ''}
+                disabled={
+                  busy ||
+                  (destinationMode === 'pin' ? pin === null : destinationId === '')
+                }
                 onClick={startSearch}
                 className="h-14 w-full justify-between rounded-none text-base"
               >
