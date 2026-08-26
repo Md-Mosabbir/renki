@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Wordmark } from '@/components/brand/wordmark';
+import { NotificationSettings } from '@/components/pwa/notification-settings';
 import { MyReports } from '@/components/reports/my-reports';
 
 /**
@@ -152,6 +153,17 @@ export default function ProfilePage() {
               are checked against it, so they cannot be retyped here. To change who you
               are matched with, use your matching preference above.
             </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold tracking-widest uppercase">
+              Notifications
+            </h2>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Get told when someone matches with you, a ride is cancelled, or a friend
+              request arrives — even with Renki closed.
+            </p>
+            <NotificationSettings isAdmin={current.isAdmin} />
           </section>
 
           <MyReports />

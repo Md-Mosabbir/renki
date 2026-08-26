@@ -10,6 +10,7 @@ import friendsRoutes from './friends.routes.js';
 import groupsRoutes from './groups.routes.js';
 import ridesRoutes from './rides.routes.js';
 import reportsRoutes from './reports.routes.js';
+import pushRoutes from './push.routes.js';
 import adminRoutes from './admin.routes.js';
 import devRoutes from './dev.routes.js';
 
@@ -28,6 +29,7 @@ router.use('/friends', friendsRoutes);
 router.use('/groups', groupsRoutes);
 router.use('/rides', ridesRoutes);
 router.use('/reports', reportsRoutes);
+router.use('/push', pushRoutes);
 router.use('/admin', adminRoutes);
 
 // Development only, and mounted conditionally rather than guarded inside: in

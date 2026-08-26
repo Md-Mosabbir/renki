@@ -33,6 +33,16 @@ export const api = {
    */
   devVerify: httpApi.devVerify,
 
+  // ---- REAL — served by backend/src/routes/push.routes.ts ----
+  /** GET /api/push/key — the VAPID public key, or enabled:false. */
+  pushKey: httpApi.pushKey,
+  /** POST /api/push/subscribe */
+  subscribePush: httpApi.subscribePush,
+  /** DELETE /api/push/subscribe */
+  unsubscribePush: httpApi.unsubscribePush,
+  /** POST /api/push/test — admin only, notifies the caller's own devices. */
+  testPush: httpApi.testPush,
+
   // ---- REAL — served by backend/src/routes/friends.routes.ts ----
   /** GET /api/friends */
   friends: httpApi.friends,

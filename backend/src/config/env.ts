@@ -58,6 +58,27 @@ export const env = {
   storageSecretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY ?? '',
 
   /**
+   * Web Push (VAPID).
+   *
+   * Optional, and empty disables push entirely — sends become no-ops and the
+   * subscribe endpoint refuses. That is deliberate: push is an enhancement, and
+   * an unconfigured deploy must still match rides, not crash on the first
+   * notification.
+   *
+   * The PUBLIC key is public by design — it ships in the browser bundle as
+   * NEXT_PUBLIC_VAPID_PUBLIC_KEY, exactly like the Google client ID. The
+   * PRIVATE key never leaves the server; anyone holding it can send push
+   * notifications that appear to come from Renki.
+   *
+   * `vapidSubject` must be a mailto: or https: URL. Push services use it to
+   * contact whoever is responsible for a misbehaving sender, and some reject a
+   * malformed one outright.
+   */
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+  vapidSubject: process.env.VAPID_SUBJECT ?? 'mailto:renki@northsouth.edu',
+
+  /**
    * How long a moderator's signed link to a challenge photo lives.
    *
    * Short because the admin page refetches rather than caching, and a link that

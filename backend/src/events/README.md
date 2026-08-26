@@ -205,3 +205,36 @@ Observer yet.
 - **Do not import anything from `controllers/`.** Services and events sit below
   controllers; the arrow only points one way.
 - Remember the `.js` extension on every relative import.
+
+---
+
+## Push notifications are already wired — you just publish
+
+The transport landed ahead of this bus, so a phone can already buzz. What is
+missing is the thing that decides _when_, which is what you are building.
+
+`services/push.service.ts` and `services/push-messages.ts` are done, tested and
+have **no dependency on this bus** — deliberately, so they compiled before it
+existed. Your subscriber is the join:
+
+```ts
+// events/subscribers/push.subscriber.ts
+import { sendToUsers } from '../../services/push.service.js';
+import { messageFor } from '../../services/push-messages.js';
+
+// The same event -> kind table you use for the `notifications` row.
+await sendToUsers(event.audience, messageFor(kind, actorName));
+```
+
+`messageFor` already covers all ten kinds and its copy rules are asserted in
+`push-messages.test.ts` — first names only, no codes, and a cancellation may not
+share a `tag` with a live ride. Read that test before changing any wording.
+
+**`sendToUsers` never throws**, which is the contract Step 2 asks of every
+subscriber. It also prunes dead subscriptions itself, so you do not need to
+think about expiry.
+
+**Notifications and push are two different things and both should happen.** The
+row in `notifications` is the record a student sees when they open the app; the
+push is the buzz that tells them to. Someone with no push subscription — most
+iPhone users, until they install the PWA — must still get the row.

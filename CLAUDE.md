@@ -790,6 +790,72 @@ system postgres, and a service container has no such conflict. `STORAGE_ENDPOINT
 is set empty there, which selects the in-memory object store, so CI needs no
 cloud account.
 
+## Notifications and push
+
+Two halves, and they are **not** the same thing:
+
+|                                          | What it is                                                    | Owner             |
+| ---------------------------------------- | ------------------------------------------------------------- | ----------------- |
+| `notifications` table                    | the RECORD — what a student sees on opening the app           | Enamul (Observer) |
+| `push_subscriptions` + `push.service.ts` | the TRANSPORT — what makes a phone buzz while the app is shut | built             |
+
+**Both must happen for every event.** Most iPhone users will have no push
+subscription until they install the PWA, and they still have to be able to open
+Renki and find out what they missed. A design where the push IS the notification
+loses the event for everyone who declined the permission.
+
+`backend/src/events/` is still a README — the bus, the subscribers and
+`GET /api/notifications` are Enamul's. The push side deliberately has **no
+dependency on it**, so it compiled and shipped first;
+`services/push-messages.ts` is the join, and the subscriber is four lines.
+
+**Web Push with self-generated VAPID keys, which is why it costs nothing.** The
+endpoints belong to Google, Mozilla and Apple, and Renki holds an account with
+none of them — a keypair made with `npx web-push generate-vapid-keys` is the
+whole authentication story. No Firebase, no free tier to outgrow.
+
+**Push is optional and unset keys disable it.** Sends become no-ops, subscribing
+answers 503. This is the OPPOSITE of `STORAGE_*`, which throws at startup in
+production, and the difference is deliberate: losing push loses a convenience,
+while an unconfigured object store silently drops evidence a moderator needs.
+
+**iOS delivers push ONLY to an installed PWA.** Safari has supported it since
+16.4, but only from the Home Screen — in a normal tab there is no prompt, no
+delivery, and no error. This is Apple's rule and cannot be worked around, so
+`components/pwa/install-banner.tsx` is not app-store cargo cult: for roughly
+half of NSU it is the only route to ever being told a ride was cancelled. Its
+copy leads with notifications for that reason. `app/manifest.ts` is the other
+precondition — no manifest, no Home Screen, no push.
+
+**A 404 or 410 from a push endpoint means DELETE the row, not retry.** The
+subscription was revoked — site data cleared, app uninstalled, permission
+withdrawn — and it will never work again. Skipping this is how the table fills
+with corpses that are retried on every send until the fan-out is mostly
+failures. Verified: sending to a dead endpoint pruned the row automatically.
+
+**`uq_push_endpoint` is global, not per `(user_id, endpoint)`, and that is a
+privacy rule.** A browser mints one endpoint per installation, so when a second
+student signs in on a shared phone the endpoint must CHANGE HANDS. Two rows
+would mean the first account keeps receiving notifications on a device it no
+longer controls. `saveSubscription` upserts on the endpoint for exactly this.
+
+**Nothing sensitive goes in a payload.** A lock screen is read in one glance,
+possibly by whoever is standing next to its owner. First names only, never a
+full name; never a meetup or ride-start CODE, since those are the security model
+and a lock-screen preview is a screenshot waiting to happen; and a moderation
+notification names nobody at all. `push-messages.test.ts` asserts all three.
+
+**`tag` collapses notifications on the device, so a cancellation may never share
+one with a live ride.** Newest-replaces-oldest is exactly how somebody turns up
+to a ride that was called off. Also asserted.
+
+**`POST /api/push/test` is admin-gated, not development-only**, and can only
+ever notify the caller's own devices. A check that cannot run in production
+tells you nothing about production; an endpoint that accepted a target id would
+be a spam vector wearing a diagnostic label. It returns `delivered`, and a `0`
+means "no device is registered for you" — a different problem from a failed send
+and much the more common one.
+
 ## Architecture
 
 MVC, strictly layered: **routes → controllers → services → models**. Each layer

@@ -196,6 +196,29 @@ CREATE TABLE public.notifications (
 
 
 --
+-- Name: push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone
+);
+
+
+--
+-- Name: TABLE push_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.push_subscriptions IS 'Web Push transport. The record of what happened lives in notifications.';
+
+
+--
 -- Name: qr_verifications; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -510,6 +533,14 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: push_subscriptions push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: qr_verifications qr_verifications_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -638,6 +669,14 @@ ALTER TABLE ONLY public.ride_match_proposals
 
 
 --
+-- Name: push_subscriptions uq_push_endpoint; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT uq_push_endpoint UNIQUE (endpoint);
+
+
+--
 -- Name: ride_feedback uq_ride_feedback_once; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -747,6 +786,13 @@ CREATE INDEX notifications_unread_idx ON public.notifications USING btree (user_
 --
 
 CREATE INDEX notifications_user_idx ON public.notifications USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: push_subscriptions_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX push_subscriptions_user_idx ON public.push_subscriptions USING btree (user_id);
 
 
 --
@@ -1026,6 +1072,14 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_subscriptions push_subscriptions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --

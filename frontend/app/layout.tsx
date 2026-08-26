@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { InstallBanner } from '@/components/pwa/install-banner';
 import './globals.css';
 
 // Named --font-sans, not --font-geist-sans: globals.css maps Tailwind's
@@ -23,6 +24,25 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: 'Renki',
   description: 'Share a ride with someone from your campus.',
+  // app/manifest.ts generates this; naming it here is what puts the <link> in
+  // the document, which is what makes the app installable — and on iOS,
+  // installable is the only route to push notifications at all.
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Renki',
+    // 'default' keeps the status bar legible against the dark app background.
+    statusBarStyle: 'default',
+  },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    // Safari ignores the manifest's icons when adding to the Home Screen and
+    // reads this instead. Without it iOS screenshots the page and uses that.
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 // Mobile-first: the app is used one-handed on a phone, and the scan and swipe
@@ -47,6 +67,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         {children}
+        <InstallBanner />
         <Toaster position="top-center" />
       </body>
     </html>

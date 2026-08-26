@@ -191,6 +191,40 @@ export const httpApi = {
     return user;
   },
 
+  // ---- Web Push ----
+
+  /**
+   * GET /api/push/key
+   *
+   * Served rather than inlined as NEXT_PUBLIC_*, so rotating the VAPID keypair
+   * does not require rebuilding and redeploying the frontend. It is public
+   * either way — a VAPID public key is meant to be in the browser.
+   */
+  async pushKey(): Promise<{ enabled: boolean; publicKey: string | null }> {
+    return request<{ enabled: boolean; publicKey: string | null }>('/push/key');
+  },
+
+  async subscribePush(subscription: PushSubscriptionJSON): Promise<void> {
+    await request<unknown>('/push/subscribe', {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify({ subscription }),
+    });
+  },
+
+  async unsubscribePush(endpoint: string): Promise<void> {
+    await request<unknown>('/push/subscribe', {
+      auth: true,
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    });
+  },
+
+  /** POST /api/push/test — admin only; notifies the caller's own devices. */
+  async testPush(): Promise<{ delivered: number }> {
+    return request<{ delivered: number }>('/push/test', { auth: true, method: 'POST' });
+  },
+
   /* ---------------- friends ---------------- */
 
   /** All four lists in one round trip — they render as one screen. */
