@@ -767,6 +767,29 @@ list was wrong within a minute. Its worse failure is later: a migration adds a
 table, nobody adds it here, and state leaks between tests as a flake in whichever
 test happens to run second.
 
+**The integration suite pins its own environment, in `src/test/setup-env.ts`.**
+VAPID keys, storage credentials and `NODE_ENV` are set there unconditionally,
+overriding whatever is in a developer's `.env`.
+
+This is not tidiness. The push tests passed locally and failed in CI, because a
+developer's `.env` holds real VAPID keys and a runner has none — so
+`isPushConfigured()` was true on one machine and false on the other, and the
+suite was quietly testing a different configuration depending on who ran it.
+The same trap was already set in reverse for storage: a `.env` with real
+Supabase credentials meant any test touching the object store would have read
+and written the LIVE bucket while passing.
+
+So: **do not add environment variables to the CI workflow to make a test pass.**
+The workflow supplies `DATABASE_URL`, `CLIENT_ID` and `JWT_SECRET` and nothing
+else; everything the application reads is pinned in `setup-env.ts`. Two places
+deciding is what produced the bug — CI cleared `STORAGE_ENDPOINT` and nobody
+thought to clear VAPID.
+
+It is `setupFiles` rather than `globalSetup` because `config/env.ts` reads
+`process.env` once at import and freezes it: setup files run inside each worker
+before the module graph loads, and `dotenv/config` will not overwrite a variable
+that is already set.
+
 **`fileParallelism: false`, because every test truncates every table.** Two
 files at once delete each other's fixtures.
 

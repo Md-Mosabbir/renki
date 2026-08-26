@@ -122,12 +122,16 @@ jobs:
       - name: Run integration tests
         env:
           DATABASE_URL: postgresql://renki:renki@localhost:5432/renki
-          NODE_ENV: test
           CLIENT_ID: ci-client-id
           JWT_SECRET: ci-secret-not-used-outside-ci
-          # Left empty on purpose: an unconfigured store selects the in-memory
-          # implementation, so CI needs no cloud account and no credentials.
-          STORAGE_ENDPOINT: ''
+          # NOTHING ELSE BELONGS HERE. src/test/setup-env.ts pins VAPID,
+          # storage and NODE_ENV inside the test workers, so the suite runs the
+          # same configuration on a runner and on a laptop.
+          #
+          # Setting them here as well was the original bug in miniature: CI
+          # cleared STORAGE_ENDPOINT but nobody thought to clear VAPID, so the
+          # push tests passed against a developer's real keys and failed here.
+          # One place decides, and it is not this file.
         run: npm run test:int -w @renki/backend
 
   docker:

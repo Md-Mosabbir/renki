@@ -27,6 +27,12 @@ export default defineConfig({
     // Migrations run once before the first file.
     globalSetup: ['src/test/global-setup.ts'],
 
+    // Pins VAPID and storage config in every worker BEFORE config/env.ts reads
+    // process.env. Without it the suite tests whatever happens to be in the
+    // developer's .env, which is how the push tests passed locally and failed
+    // in CI. See the file for the full account.
+    setupFiles: ['src/test/setup-env.ts'],
+
     // A cold Postgres connection plus migrations is comfortably past vitest's
     // 5s default.
     testTimeout: 20_000,
