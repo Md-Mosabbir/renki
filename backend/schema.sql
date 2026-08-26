@@ -133,6 +133,24 @@ CREATE TABLE public.locations (
 
 
 --
+-- Name: notifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.notifications (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    kind character varying(40) NOT NULL,
+    actor_user_id uuid,
+    ride_group_id uuid,
+    friendship_id uuid,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_notifications_kind CHECK (((kind)::text = ANY ((ARRAY['ride_matched'::character varying, 'swipe_received'::character varying, 'ride_started'::character varying, 'ride_completed'::character varying, 'ride_cancelled'::character varying, 'friend_request'::character varying, 'friend_confirmed'::character varying, 'group_invite'::character varying, 'group_ready'::character varying, 'report_filed'::character varying])::text[]))),
+    CONSTRAINT chk_notifications_not_self CHECK (((actor_user_id IS NULL) OR (actor_user_id <> user_id)))
+);
+
+
+--
 -- Name: qr_verifications; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -419,6 +437,14 @@ ALTER TABLE ONLY public.locations
 
 
 --
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: qr_verifications qr_verifications_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -645,6 +671,20 @@ CREATE INDEX locations_h3_cell_idx ON public.locations USING btree (h3_cell);
 
 
 --
+-- Name: notifications_unread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_unread_idx ON public.notifications USING btree (user_id, created_at DESC) WHERE (read_at IS NULL);
+
+
+--
+-- Name: notifications_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_user_idx ON public.notifications USING btree (user_id, created_at DESC);
+
+
+--
 -- Name: qr_verifications_group_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -866,6 +906,38 @@ ALTER TABLE ONLY public.gender_verifications
 
 ALTER TABLE ONLY public.gender_verifications
     ADD CONSTRAINT gender_verifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notifications notifications_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: notifications notifications_friendship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_friendship_id_fkey FOREIGN KEY (friendship_id) REFERENCES public.friendships(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notifications notifications_ride_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_ride_group_id_fkey FOREIGN KEY (ride_group_id) REFERENCES public.ride_groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
