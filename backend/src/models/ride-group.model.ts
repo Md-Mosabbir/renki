@@ -5,7 +5,17 @@
  * be trusted with, so the row is narrowed here rather than in each controller.
  */
 
-import type { Gender } from './user.model.js';
+/**
+ * `chk_ride_groups_gender`. Deliberately NOT `Gender`.
+ *
+ * A ride's gender is not a person's gender. Since migration 27 a ride may carry
+ * two, and 'mixed' is what that is called — while 'unspecified', which a `users`
+ * row legitimately holds before onboarding, is not a ride the app should ever
+ * have been able to create. Keeping the two unions apart is what stops one
+ * being assigned to the other by accident.
+ */
+export const RIDE_GROUP_GENDERS = ['male', 'female', 'mixed'] as const;
+export type RideGroupGender = (typeof RIDE_GROUP_GENDERS)[number];
 
 /** `chk_ride_groups_status`, in the order a group moves through them. */
 export const GROUP_STATUSES = [
@@ -32,7 +42,7 @@ export interface RideGroupRow {
   departure_time: Date;
   status: string;
   created_at: Date;
-  gender: Gender;
+  gender: RideGroupGender;
   formation: string;
   created_by_user_id: string | null;
   capacity: number;
@@ -86,7 +96,7 @@ export interface PublicRideGroup {
   status: string;
   /** 'matched' for a stranger pairing, 'friends' for one built from a friend list. */
   formation: string;
-  gender: Gender;
+  gender: RideGroupGender;
   capacity: number;
   originLocationId: string;
   /** True when this ride starts at the campus. Stranger rides always do. */

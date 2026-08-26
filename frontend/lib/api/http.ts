@@ -189,9 +189,9 @@ export const httpApi = {
   /**
    * Students who could be sent a request.
    *
-   * The same-gender and same-university filters are applied by the server. This
-   * client does no filtering of its own, and must not start: a filter here would
-   * mean the excluded names had already been sent to the browser.
+   * The same-university filter is applied by the server. This client does no
+   * filtering of its own, and must not start: a filter here would mean the
+   * excluded names had already been sent to the browser.
    */
   async discover(searchTerm: string): Promise<FriendCandidate[]> {
     const query = searchTerm ? `?q=${encodeURIComponent(searchTerm)}` : '';

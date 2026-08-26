@@ -36,7 +36,7 @@ export const api = {
   friends: httpApi.friends,
   /** GET /api/friends/:id */
   friendship: httpApi.friendship,
-  /** GET /api/friends/discover — gender filtering happens in SQL, not here. */
+  /** GET /api/friends/discover — filtering happens in SQL, not here. */
   discover: httpApi.discover,
   /** GET /api/friends/graph — my friends plus who among them knows whom. */
   friendGraph: httpApi.friendGraph,

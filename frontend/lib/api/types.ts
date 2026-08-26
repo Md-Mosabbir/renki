@@ -9,6 +9,15 @@
  */
 
 export type Gender = 'male' | 'female' | 'unspecified';
+
+/**
+ * `chk_ride_groups_gender` — deliberately not `Gender`.
+ *
+ * A ride's gender is not a person's. Since migration 27 a ride may carry two,
+ * and 'mixed' is what that is called; 'unspecified' is a value a person's row
+ * holds before onboarding and never a ride.
+ */
+export type RideGroupGender = 'male' | 'female' | 'mixed';
 export type TrustStage = 'new' | 'verified' | 'established';
 
 /** Mirrors `PublicUser` in backend/src/models/user.model.ts. */
@@ -33,6 +42,16 @@ export interface User {
    * nothing but a link that 404s.
    */
   isAdmin: boolean;
+  /**
+   * Whether this student has opted out of same-gender-only stranger matching.
+   *
+   * The one preference on this type that is editable after onboarding, and the
+   * only field here that changes who they can be matched with. The rule is
+   * mutual: two riders meet only if they share a gender or BOTH set this, so a
+   * true here is never on its own enough to place someone in front of another
+   * student who did not also choose it.
+   */
+  matchOpenToAll: boolean;
 }
 
 export interface AuthResult {
@@ -174,7 +193,7 @@ export interface RideGroup {
   status: GroupStatus;
   /** 'friends' when built from a friend list, 'matched' when the matcher paired strangers. */
   formation: 'friends' | 'matched';
-  gender: Gender;
+  gender: RideGroupGender;
   capacity: number;
   originLocationId: string;
   /**
@@ -345,10 +364,15 @@ export interface IncomingMatch {
  * verifying again rather than typing; university and email come from the
  * northsouth.edu Google account. Sending any of them is a 400 naming the
  * field, not a silent no-op — mirror that here rather than widening the type.
+ *
+ * `matchOpenToAll` is the exception, and is not a loophole in that rule: it is
+ * a preference rather than a claim, which is exactly why it is a separate
+ * field from `gender` rather than a way of editing it.
  */
 export interface ProfileUpdate {
   name?: string;
   phone?: string;
+  matchOpenToAll?: boolean;
 }
 
 /* ------------------------------------------------------------------ *

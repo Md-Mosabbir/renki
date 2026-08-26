@@ -3,10 +3,15 @@ import type { PoolClient } from 'pg';
 /**
  * STRATEGY — how the matcher decides who is "going the same way".
  *
- * The rules that must never vary stay in the caller: same gender, both parties
- * eligible, campus origin, not already matched, not each other. Those are the
- * product's safety guarantees, and putting them behind a swappable interface
- * would mean a strategy could switch them off.
+ * The rules that must never vary stay in the caller: the gender rule, both
+ * parties eligible, campus origin, not already matched, not each other. Those
+ * are the product's safety guarantees, and putting them behind a swappable
+ * interface would mean a strategy could switch them off.
+ *
+ * That applies to the gender PREFERENCE as much as it did to the old fixed
+ * rule. `openToAll` below is passed in and consumed by the shared query; no
+ * strategy reads it, and none may — a strategy that could decide whose
+ * preference to honour is a strategy that could decide to honour neither.
  *
  * What a strategy chooses is only *which of the eligible requests are close
  * enough*, and how to rank them. That genuinely varies:
@@ -24,6 +29,13 @@ export interface MatchInput {
   requestId: string;
   userId: string;
   gender: string;
+  /**
+   * Whether the searcher has opted out of same-gender-only matching.
+   *
+   * Not sufficient on its own: the shared query pairs it with the OTHER
+   * person's setting, so both must be open before two genders meet.
+   */
+  openToAll: boolean;
   destinationLocationId: string;
   /** H3 cell of the destination, resolution 8. */
   destinationCell: string;

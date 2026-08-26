@@ -24,7 +24,8 @@ import { HttpError } from '../utils/http-error.js';
 const USER_COLUMNS = `
   id, name, email, google_id, profile_picture_url, id_card_image_url,
   gender, university, created_at, trust_stage, qr_token, qr_token_expires_at,
-  date_of_birth, phone, student_id, profile_completed_at, is_admin
+  date_of_birth, phone, student_id, profile_completed_at, is_admin,
+  match_open_to_all
 `;
 
 /**
@@ -163,6 +164,10 @@ export async function updateProfile(
   if (patch.phone !== undefined) {
     values.push(patch.phone);
     assignments.push(`phone = $${String(values.length)}`);
+  }
+  if (patch.matchOpenToAll !== undefined) {
+    values.push(patch.matchOpenToAll);
+    assignments.push(`match_open_to_all = $${String(values.length)}`);
   }
 
   if (assignments.length === 0) {

@@ -43,6 +43,19 @@ export interface UserRow {
    * so. An app that can promote its own users is an app where a bug can.
    */
   is_admin: boolean;
+  /**
+   * Opt out of same-gender-only stranger matching.
+   *
+   * A preference, not a claim — which is why it is a separate column from
+   * `gender` and the one profile field on this row that is genuinely editable
+   * after onboarding. FALSE is the default and the behaviour every account had
+   * before migration 27.
+   *
+   * The rule it feeds is mutual: two riders see each other only if they share a
+   * gender or if BOTH have set this. Opening yourself up can never place you in
+   * front of somebody who did not also open themselves up.
+   */
+  match_open_to_all: boolean;
 }
 
 /**
@@ -65,6 +78,12 @@ export interface PublicUser {
   profileCompleted: boolean;
   /** Moderator. The client uses it only to decide whether to show the queue. */
   isAdmin: boolean;
+  /**
+   * Whether this student has opted out of same-gender-only stranger matching.
+   * Drives the toggle on the profile screen, and the banner that states which
+   * mode is active.
+   */
+  matchOpenToAll: boolean;
 }
 
 /** What the Google sign-in step knows about a student before any form. */
@@ -103,6 +122,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     studentId: row.student_id,
     profileCompleted: row.profile_completed_at !== null,
     isAdmin: row.is_admin,
+    matchOpenToAll: row.match_open_to_all,
   };
 }
 
@@ -258,20 +278,22 @@ function validateDateOfBirth(value: string): ValidationResult<string> {
  *     them be retyped would make the card check meaningless — the whole point
  *     of verification is that the row and the card agree, and re-verifying
  *     means another photo and another review.
- *   - `gender` is the single filter that decides who a student can be matched
- *     with, be friends with and share a car with. It is checked at request and
- *     again at redemption precisely because a profile can change in between;
- *     an endpoint that flips it on demand turns that double check into a
- *     formality.
+ *   - `gender` is a claim of the same kind: it is one of the three fields an ID
+ *     card is checked against, and it is written once by the onboarding form
+ *     under `WHERE profile_completed_at IS NULL`. Since migration 27 it is no
+ *     longer the rule deciding who a student rides with — `matchOpenToAll` is
+ *     the editable half of that — but it is still not a thing to be retyped.
  *   - `university` and `email` come from the Google account and the @-domain
  *     rule. They are not the student's to assert.
  *
- * `name` and `phone` are the two that are genuinely the student's own: a name
- * people recognise, and a number that still reaches them.
+ * `name`, `phone` and `matchOpenToAll` are the three that are genuinely the
+ * student's own: a name people recognise, a number that still reaches them, and
+ * who they are willing to share a car with.
  */
 export interface ProfileUpdate {
   name?: string;
   phone?: string;
+  matchOpenToAll?: boolean;
 }
 
 /**
@@ -293,7 +315,7 @@ const LOCKED_FIELDS = [
 
 const LOCKED_REASONS: Record<string, string> = {
   gender:
-    'Gender is fixed once your profile is set up — it decides who you can ride with',
+    'Gender is taken from your student ID and cannot be edited. To change who you are matched with, use your matching preference',
   dateOfBirth: 'Date of birth is taken from your student ID and cannot be edited',
   studentId: 'Student ID is taken from your student ID card and cannot be edited',
   university: 'University comes from your northsouth.edu account',
@@ -350,8 +372,22 @@ export function validateProfileUpdate(body: unknown): ValidationResult<ProfileUp
     patch.phone = phone;
   }
 
+  if ('matchOpenToAll' in raw) {
+    // Strictly a boolean, never truthiness. The string "false" is truthy in
+    // JavaScript, and a client that sent it would be opted IN to being matched
+    // with anyone while its own UI showed the opposite — the one failure mode
+    // this setting must not have.
+    if (typeof raw.matchOpenToAll !== 'boolean') {
+      return { valid: false, reason: 'matchOpenToAll must be true or false' };
+    }
+    patch.matchOpenToAll = raw.matchOpenToAll;
+  }
+
   if (Object.keys(patch).length === 0) {
-    return { valid: false, reason: 'Nothing to update — send name or phone' };
+    return {
+      valid: false,
+      reason: 'Nothing to update — send name, phone or matchOpenToAll',
+    };
   }
 
   return { valid: true, value: patch };

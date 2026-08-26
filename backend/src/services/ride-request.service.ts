@@ -261,6 +261,7 @@ export async function dealDeck(userId: string, requestId: string): Promise<Deck>
       requestId: request.id,
       userId,
       gender: rider.gender,
+      openToAll: rider.match_open_to_all,
       destinationLocationId: request.destination_location_id,
       destinationCell: cell ?? '',
       departureTime: request.departure_time,
@@ -326,7 +327,8 @@ export async function listIncomingMatches(userId: string): Promise<IncomingMatch
           AND ride_group_id IS NULL
         ORDER BY created_at DESC
         LIMIT 1
-     )
+     ),
+     me AS (SELECT gender, match_open_to_all FROM users WHERE id = $1)
      SELECT mine.id            AS my_request_id,
             r.id               AS request_id,
             u.id               AS user_id,
@@ -338,6 +340,7 @@ export async function listIncomingMatches(userId: string): Promise<IncomingMatch
             r.departure_time,
             p.expires_at
        FROM mine
+       CROSS JOIN me
        JOIN ride_match_proposals p
          ON p.request_a_id = mine.id OR p.request_b_id = mine.id
        JOIN ride_requests r
@@ -358,6 +361,12 @@ export async function listIncomingMatches(userId: string): Promise<IncomingMatch
         -- next time they open the app, and until then it must not appear as
         -- someone waiting on an answer.
         AND r.departure_time > now() - make_interval(mins => $2)
+        -- The same gender rule the deck applies, for the same reason it is
+        -- re-checked in createMatchedGroup: either of us may have closed our
+        -- preference since the proposal was written. Without this, somebody
+        -- shows here as a yes waiting on an answer for a ride that would be
+        -- refused the moment it was answered.
+        AND (u.gender = me.gender OR (me.match_open_to_all AND u.match_open_to_all))
       ORDER BY r.departure_time`,
     [userId, REQUEST_GRACE_MINUTES]
   );
@@ -507,22 +516,38 @@ async function createMatchedGroup(
   mine: RideRequestRow,
   theirs: RideRequestRow
 ): Promise<{ group: RideGroupRow; members: GroupMemberRow[] }> {
-  const { rows: riders } = await client.query<{ id: string; gender: string }>(
-    `SELECT id, gender FROM users WHERE id IN ($1, $2)`,
-    [mine.user_id, theirs.user_id]
-  );
+  const { rows: riders } = await client.query<{
+    id: string;
+    gender: string;
+    match_open_to_all: boolean;
+  }>(`SELECT id, gender, match_open_to_all FROM users WHERE id IN ($1, $2)`, [
+    mine.user_id,
+    theirs.user_id,
+  ]);
 
-  const genders = new Set(riders.map((rider) => rider.gender));
-  if (genders.size !== 1) {
-    // Unreachable through dealDeck, which filters on gender in SQL. Checked
-    // again because this is the moment the two are actually put in one car,
-    // and the cost of being wrong here is the product's whole promise.
-    throw new HttpError(403, 'Riders must be the same gender');
-  }
-  const gender = riders[0]?.gender;
-  if (gender === undefined) {
+  const [a, b] = riders;
+  if (a === undefined || b === undefined) {
     throw new HttpError(404, 'One of those students no longer exists');
   }
+
+  // The gender rule, checked for the second time.
+  //
+  // This used to be unreachable — the deck filtered on gender in SQL and a
+  // gender could never change. Since migration 27 it can genuinely fail: the
+  // preference is editable at any moment, so somebody may have closed
+  // themselves off between the card being dealt and this swipe landing.
+  //
+  // Which makes THIS the answer that counts. It is the moment two people are
+  // actually put in one car, and it runs inside the transaction that creates
+  // the ride, so there is no window after it.
+  if (a.gender !== b.gender && !(a.match_open_to_all && b.match_open_to_all)) {
+    throw new HttpError(403, 'One of you is only matched with riders of the same gender');
+  }
+
+  // A ride carries one gender because `ride_groups.gender` is one NOT NULL
+  // column. Two riders who share one give it their own; two who do not are
+  // 'mixed', which is a value the column only accepts as of migration 27.
+  const gender = a.gender === b.gender ? a.gender : 'mixed';
 
   // Whoever has to leave first sets the ride — the alternative makes them late.
   // The same person's destination becomes the group's headline destination, so
@@ -621,15 +646,23 @@ function isOpen(status: string): boolean {
 async function loadRider(
   client: PoolClient,
   userId: string
-): Promise<{ id: string; gender: string; trust_stage: string }> {
+): Promise<{
+  id: string;
+  gender: string;
+  trust_stage: string;
+  match_open_to_all: boolean;
+}> {
   const { rows } = await client.query<{
     id: string;
     gender: string;
     trust_stage: string;
     profile_completed_at: Date | null;
-  }>(`SELECT id, gender, trust_stage, profile_completed_at FROM users WHERE id = $1`, [
-    userId,
-  ]);
+    match_open_to_all: boolean;
+  }>(
+    `SELECT id, gender, trust_stage, profile_completed_at, match_open_to_all
+       FROM users WHERE id = $1`,
+    [userId]
+  );
   const rider = rows[0];
   if (!rider) {
     throw new HttpError(401, 'Account no longer exists');

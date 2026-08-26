@@ -22,7 +22,7 @@ import { useSession } from '@/lib/use-session';
  * because they are one thing viewed from different angles, and splitting them
  * into three requests would mean three loading spinners for one page.
  *
- * Nothing here filters by gender. The server does that in SQL — see
+ * Nothing here filters by anything. The server does that in SQL — see
  * `searchCandidates` — and doing it again in the browser would be worse than
  * redundant, because it would imply the browser had been sent the names it was
  * filtering out.
@@ -350,7 +350,7 @@ function AddFriends({ onAdded }: { onAdded: () => void }) {
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Renki only shows students of your own gender at your own university.
+        Renki only shows students at your own university.
       </p>
 
       {searching ? (

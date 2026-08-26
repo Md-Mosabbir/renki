@@ -87,7 +87,7 @@ export default function RidesPage() {
               enabled={verified}
               icon={Search}
               title="Match with a stranger"
-              body="One other rider of your gender, leaving campus around the same time, going near where you are going. You both swipe; a ride happens only if you both say yes."
+              body="One other rider leaving campus around the same time, going near where you are going. You both swipe; a ride happens only if you both say yes."
             />
 
             <RideOption
@@ -260,9 +260,24 @@ function TrustBanner({
           </p>
           <p className="text-muted-foreground text-sm leading-relaxed">
             {verified
-              ? `${user.university} · matched only with ${user.gender} riders`
+              ? `${user.university} · ${
+                  user.matchOpenToAll
+                    ? 'open to riders of any gender'
+                    : `matched only with ${user.gender} riders`
+                }`
               : "You can look around, but you won't be matched until you verify."}
           </p>
+          {/* A banner that states a setting has to lead to the setting.
+              Otherwise it reads as a fixed rule of the app, which is exactly
+              what it stopped being. */}
+          {verified && (
+            <Link
+              href="/profile"
+              className="text-brand inline-block text-xs font-medium underline-offset-4 hover:underline"
+            >
+              Change who you are matched with
+            </Link>
+          )}
         </div>
       </div>
 

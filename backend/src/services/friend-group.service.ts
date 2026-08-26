@@ -1,7 +1,11 @@
 import type { PoolClient } from 'pg';
 
 import { query, transaction } from '../db/pool.js';
-import type { GroupMemberRow, RideGroupRow } from '../models/ride-group.model.js';
+import type {
+  GroupMemberRow,
+  RideGroupGender,
+  RideGroupRow,
+} from '../models/ride-group.model.js';
 import type { Gender, TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
 
@@ -87,7 +91,7 @@ export async function createFriendGroup(
       throw new HttpError(401, 'Account no longer exists');
     }
 
-    const gender = assertSingleGender(creator, people);
+    const gender = resolveGroupGender(creator, people);
     await assertEveryPairIsFriends(client, members, people);
 
     // A friends group may run in any direction — home to campus, campus to
@@ -277,19 +281,25 @@ async function loadMembers(
 }
 
 /**
- * `ride_groups.gender` is a single NOT NULL column, so a group HAS one gender.
- * The clique check below would catch a mismatch anyway — friendships are
- * same-gender by construction — but only as a confusing "you are not friends"
- * message, and a direct check gives a direct answer.
+ * What gender is this ride?
+ *
+ * `ride_groups.gender` is a single NOT NULL column, so a group HAS one — but
+ * since migration 27 that is a fact to be computed rather than a rule to be
+ * enforced. Friendships no longer require a shared gender, so a mixed friends
+ * group is legal, and 'mixed' is the value for it.
+ *
+ * What still holds: every pair in this group has met in person and scanned a
+ * live code. That is what makes a friends ride safe, and it never depended on
+ * gender.
+ *
+ * 'unspecified' is not a value `chk_ride_groups_gender` accepts, so a member
+ * who has not answered makes the group 'mixed' rather than propagating a value
+ * the INSERT would be rejected for.
  */
-function assertSingleGender(
+function resolveGroupGender(
   creator: MemberEligibilityRow,
   people: Map<string, MemberEligibilityRow>
-): Gender {
-  if (creator.gender === 'unspecified') {
-    throw new HttpError(403, 'Confirm your gender before creating a group');
-  }
-
+): RideGroupGender {
   for (const person of people.values()) {
     if (person.profile_completed_at === null) {
       throw new HttpError(
@@ -297,12 +307,13 @@ function assertSingleGender(
         `${person.name} has not finished setting up their account`
       );
     }
-    if (person.gender !== creator.gender) {
-      throw new HttpError(403, 'Every member of a group must be the same gender');
-    }
   }
 
-  return creator.gender;
+  const uniform = [...people.values()].every(
+    (person) => person.gender === creator.gender
+  );
+
+  return uniform && creator.gender !== 'unspecified' ? creator.gender : 'mixed';
 }
 
 /**

@@ -251,7 +251,7 @@ CREATE TABLE public.ride_groups (
     CONSTRAINT chk_ride_groups_capacity CHECK (((capacity >= 2) AND (capacity <= 6))),
     CONSTRAINT chk_ride_groups_formation CHECK (((formation)::text = ANY ((ARRAY['matched'::character varying, 'friends'::character varying])::text[]))),
     CONSTRAINT chk_ride_groups_friends_have_creator CHECK ((((formation)::text <> 'friends'::text) OR (created_by_user_id IS NOT NULL))),
-    CONSTRAINT chk_ride_groups_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying])::text[]))),
+    CONSTRAINT chk_ride_groups_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying, 'mixed'::character varying])::text[]))),
     CONSTRAINT chk_ride_groups_origin_dest_diff CHECK ((origin_location_id <> destination_location_id)),
     CONSTRAINT chk_ride_groups_status CHECK (((status)::text = ANY ((ARRAY['forming'::character varying, 'matched'::character varying, 'active'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))),
     CONSTRAINT chk_stranger_rides_start_at_campus CHECK ((((formation)::text <> 'matched'::text) OR ((origin_kind)::text = 'campus'::text)))
@@ -358,6 +358,7 @@ CREATE TABLE public.users (
     profile_completed_at timestamp with time zone,
     is_admin boolean DEFAULT false NOT NULL,
     id_card_captured_at timestamp with time zone,
+    match_open_to_all boolean DEFAULT false NOT NULL,
     CONSTRAINT chk_users_dob_sane CHECK (((date_of_birth IS NULL) OR ((date_of_birth > '1940-01-01'::date) AND (date_of_birth < CURRENT_DATE)))),
     CONSTRAINT chk_users_gender CHECK (((gender)::text = ANY ((ARRAY['male'::character varying, 'female'::character varying, 'unspecified'::character varying])::text[]))),
     CONSTRAINT chk_users_phone_format CHECK (((phone IS NULL) OR ((phone)::text ~ '^\+8801[3-9][0-9]{8}$'::text))),

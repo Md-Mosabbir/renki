@@ -147,11 +147,22 @@ new code deletes the old one, enforced by `uq_meetup_live_per_friendship`
 slow leak. Lengthen `MEETUP_CODE_TTL_SECONDS` and the feature stops meaning
 "we met".
 
-**Same-gender is checked twice**, at request and again at redemption inside the
-transaction. Those two events can be days apart and nothing freezes a profile in
-between. While `FRIENDABLE_TRUST_STAGES` still contains `'new'`, both checks
-compare _self-asserted_ genders — dropping `'new'` from that array is the one
-line that changes when gender verification gets a mounted route.
+**Friendship has no gender rule at all**, as of migration 27. It used to
+require a shared gender, checked at request and again at redemption. That rule
+is gone from `ineligibilityReason` and from `searchCandidates`, and the two must
+stay in step: discovery is the silent-filter twin of the request endpoint, so a
+condition in one that is not in the other hides people the other would accept.
+
+The reason it could go: what makes a friend ride safe is that both people met in
+person and scanned a live code, and that never depended on gender. The rule also
+compared two _self-asserted_ genders while `FRIENDABLE_TRUST_STAGES` contains
+`'new'`, so it read as a guarantee while being an honour system. `'new'` is
+still in that array only because identity verification has no mounted route yet.
+
+**The consequence is that a friends group may be mixed.** `resolveGroupGender`
+computes `ride_groups.gender` rather than asserting it, and returns `'mixed'`
+when members differ — which is why `chk_ride_groups_gender` accepts a third
+value now.
 
 **A friends group requires every pair to be friends, not just the creator.**
 `assertEveryPairIsFriends` diffs all C(n,2) pairs. A group where the organiser
@@ -305,11 +316,27 @@ so few riders that would fragment the pool badly, so the other person's gate is
 shown on the card before you swipe and the earlier departure sets the ride's
 pickup.
 
-**A strategy chooses proximity and nothing else.** Same gender, campus origin,
-blocked-pair exclusion, already-matched exclusion and profile completeness all
-live in `services/matching/candidate-query.ts`, shared by every strategy. Those
-are the safety guarantees; putting them behind a swappable interface would mean
-a strategy could switch them off. `MatchingStrategy` only narrows the pool.
+**A strategy chooses proximity and nothing else.** The gender rule, campus
+origin, blocked-pair exclusion, already-matched exclusion and profile
+completeness all live in `services/matching/candidate-query.ts`, shared by every
+strategy. Those are the safety guarantees; putting them behind a swappable
+interface would mean a strategy could switch them off. `MatchingStrategy` only
+narrows the pool — `openToAll` is passed through `MatchInput` and read by the
+shared query, never by a strategy.
+
+**Gender is a preference for stranger rides, and the STRICTEST side wins.**
+`users.match_open_to_all` defaults to FALSE, and the predicate is
+`u.gender = $2 OR ($10 AND u.match_open_to_all)`. The `AND` is the whole rule:
+opening yourself up is never enough on its own to place you in front of someone
+who did not also choose it. Turn it into an `OR` and one student's choice starts
+overriding another's.
+
+**It is still checked twice, and now that actually matters.** The second check
+in `createMatchedGroup` used to be unreachable — a gender could not change. The
+preference can, at any moment, so a card dealt when both were open can be swiped
+after one closed. The check inside the transaction that creates the ride is the
+answer that counts. `listIncomingMatches` carries the same predicate, or someone
+shows as a yes waiting on an answer for a ride that would be refused.
 
 **`ExactDestinationStrategy` is not a toy.** It is the fallback when a
 destination somehow has no cell, and it is what tests assert against — a test
@@ -438,15 +465,18 @@ endpoint whose name suggests it only fills in blanks. The guard is
 then means either "deleted" or "already onboarded", which is why it re-reads to
 pick between 404 and 409.
 
-**`PATCH /api/auth/me` accepts `name` and `phone`, and nothing else ever.**
-`validateProfileUpdate` in `user.model.ts` decides that, not the service. The
-locked fields are each locked for their own reason:
+**`PATCH /api/auth/me` accepts `name`, `phone` and `matchOpenToAll`, and
+nothing else ever.** `validateProfileUpdate` in `user.model.ts` decides that,
+not the service. `matchOpenToAll` is checked with `typeof === 'boolean'` and
+never for truthiness — the string `"false"` is truthy, and accepting it would
+opt a student INTO being matched with anyone while their own screen showed the
+opposite. The locked fields are each locked for their own reason:
 
-| Field                      | Why it cannot be edited                                                                                                                                                                                                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `studentId`, `dateOfBirth` | Claims checked against an ID card. Retyping one makes the card check decorative; changing them means verifying again.                                                                                                                                            |
-| `gender`                   | The single filter deciding who a student is matched with, befriends and shares a car with. It is checked at request and again at redemption _because_ a profile can change in between — an endpoint that flips it on demand makes that double check a formality. |
-| `university`, `email`      | Come from the Google account and the `hd` domain rule. Not the student's to assert.                                                                                                                                                                              |
+| Field                      | Why it cannot be edited                                                                                                                                                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `studentId`, `dateOfBirth` | Claims checked against an ID card. Retyping one makes the card check decorative; changing them means verifying again.                                                                                                                                                                                 |
+| `gender`                   | A claim checked against an ID card, like the two above. It is no longer the rule deciding who a student rides with — `matchOpenToAll` is the editable half of that — and keeping them separate is the point: changing your mind about who you ride with is not the same act as restating who you are. |
+| `university`, `email`      | Come from the Google account and the `hd` domain rule. Not the student's to assert.                                                                                                                                                                                                                   |
 
 A locked field in the body is a **400 naming it**, not a silent ignore. Dropping
 it quietly means the request succeeds, the response shows the old value, and the

@@ -6,10 +6,10 @@ import type { MatchCandidate, MatchInput } from './matching-strategy.js';
 /**
  * The eligibility rules every strategy shares, in one place.
  *
- * A strategy chooses *proximity*. It does not get to choose whether the other
- * person is the same gender, whether either of them is blocked, or whether the
- * ride starts at campus — so those live here, in SQL, and a strategy narrows
- * the result rather than widening it.
+ * A strategy chooses *proximity*. It does not get to choose whether the two
+ * riders' gender preferences agree, whether either of them is blocked, or
+ * whether the ride starts at campus — so those live here, in SQL, and a
+ * strategy narrows the result rather than widening it.
  *
  * Both destination filters are parameters rather than assembled SQL fragments:
  * pass cells and leave the location id null, or the other way round. One
@@ -65,7 +65,17 @@ const CANDIDATE_SQL = `
    WHERE r.status IN ('pending', 'proposed')
      AND r.ride_group_id IS NULL
      AND r.user_id <> $1
-     AND u.gender = $2
+     -- The gender rule, and the STRICTEST side wins.
+     --
+     -- Same gender, or both of us have opted out of the restriction. The AND
+     -- is the whole point: my being open to all is not enough on its own to
+     -- put me in front of somebody who is not, so opening yourself up can
+     -- never expose another student who did not also choose it.
+     --
+     -- Re-checked in createMatchedGroup. That is not belt-and-braces: the
+     -- preference is editable at any moment, so it can genuinely differ
+     -- between the deal and the ride actually being created.
+     AND (u.gender = $2 OR ($10::boolean AND u.match_open_to_all))
      AND u.profile_completed_at IS NOT NULL
 
      -- A stranger ride starts at campus. The same rule migration 19 puts on
@@ -143,6 +153,7 @@ export async function findEligible(
     filter.locationId,
     input.limit,
     input.graceMinutes,
+    input.openToAll,
   ]);
 
   return rows.map((row) => ({

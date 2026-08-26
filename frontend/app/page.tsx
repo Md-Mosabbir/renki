@@ -69,7 +69,10 @@ export default function SignInPage() {
                 icon: ShieldCheck,
                 text: 'Every rider verified against their student record',
               },
-              { icon: Users, text: 'Matched only with riders of the same gender' },
+              {
+                icon: Users,
+                text: 'You choose who you ride with — same gender by default',
+              },
               { icon: MapPin, text: 'First ride starts on campus, where it is safest' },
             ].map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-start gap-3">
@@ -101,7 +104,7 @@ export default function SignInPage() {
               <span className="text-brand">from campus.</span>
             </h1>
             <p className="text-muted-foreground max-w-xs text-base leading-relaxed">
-              Same-gender ride sharing for North South University. Verified students only.
+              Ride sharing for North South University. Verified students only.
             </p>
           </div>
 

@@ -21,7 +21,7 @@ export function FriendRow({
     <li className="border-border flex items-center gap-4 border-b py-4 last:border-b-0">
       <Avatar className="size-11 shrink-0 rounded-none">
         <AvatarImage src={friend.profilePictureUrl ?? undefined} alt="" />
-        {/* Initials, not a generic silhouette: in a list of same-gender
+        {/* Initials, not a generic silhouette: in a list of same-university
             students an anonymous icon makes every row look identical. */}
         <AvatarFallback className="bg-muted rounded-none text-sm font-medium">
           {initials(friend.name)}

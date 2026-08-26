@@ -220,6 +220,7 @@ describe('toPublicUser', () => {
       student_id: '2211545642',
       profile_completed_at: null,
       is_admin: false,
+      match_open_to_all: false,
       ...overrides,
     };
   }
@@ -254,11 +255,12 @@ describe('toPublicUser', () => {
  * Tests for the profile PATCH guard.
  *
  * The thing worth pinning here is what it REFUSES. `studentId`, `dateOfBirth`
- * and `gender` are claims checked against an ID card; the first two make the
- * card check meaningless if they can be retyped, and gender is the single
- * filter deciding who a student rides with. A regression that lets one through
- * would not break a test that only checks the happy path, so the locked fields
- * get one case each.
+ * and `gender` are claims checked against an ID card, and retyping any of them
+ * would make the card check decorative. `gender` in particular stays locked
+ * even though it is no longer the rule deciding who a student rides with —
+ * `matchOpenToAll` is the editable half of that, and the two must not be
+ * confused for each other. A regression that lets one through would not break a
+ * test that only checks the happy path, so the locked fields get one case each.
  */
 describe('validateProfileUpdate', () => {
   it('accepts a name on its own and leaves phone absent', () => {
@@ -290,6 +292,23 @@ describe('validateProfileUpdate', () => {
     const result = validateProfileUpdate({ name: 'Tanvir', [field]: value });
     expect(result.valid).toBe(false);
   });
+
+  it.each([true, false])('accepts matchOpenToAll = %s on its own', (value) => {
+    // The one preference a student may change after onboarding. Sent alone,
+    // because the profile screen toggles it without touching name or phone.
+    const result = validateProfileUpdate({ matchOpenToAll: value });
+    expect(result).toEqual({ valid: true, value: { matchOpenToAll: value } });
+  });
+
+  it.each(['yes', 'false', 1, 0, null])(
+    'refuses a non-boolean matchOpenToAll (%s)',
+    (value) => {
+      // Strictly typeof boolean, never truthiness. The string "false" is truthy
+      // in JavaScript, so a truthy check would opt a student INTO being matched
+      // with anyone while their own UI showed the opposite.
+      expect(validateProfileUpdate({ matchOpenToAll: value }).valid).toBe(false);
+    }
+  );
 
   it('refuses a locked field even when it is the only key', () => {
     expect(validateProfileUpdate({ studentId: '2211223' }).valid).toBe(false);

@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
+import { useSession } from '@/lib/use-session';
 import type { Deck, DeckCard, Destination, RideRequest } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,10 @@ type Phase = 'loading' | 'composing' | 'swiping';
 
 export default function StrangerSearchPage() {
   const router = useRouter();
+  // Only for the empty-deck hint below. This page does no filtering of its
+  // own — the server decides who is dealt — so the session is read here purely
+  // to say which setting produced an empty result.
+  const { user } = useSession();
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -196,8 +201,9 @@ export default function StrangerSearchPage() {
           <>
             <h1 className="text-2xl font-medium tracking-tight">Ride with a stranger</h1>
             <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-              You will only ever be shown people of your own gender, leaving campus around
-              the same time, heading somewhere near you.
+              You will be shown people leaving campus around the same time, heading
+              somewhere near you. Riders of your own gender, unless you have both chosen
+              to match more widely.
             </p>
 
             {error !== null && (
@@ -316,10 +322,28 @@ export default function StrangerSearchPage() {
             )}
 
             {deck !== null && deck.candidates.length === 0 && (
-              <p className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
-                No one else is heading that way right now. Your search stays open — check
-                back, or ride with friends instead.
-              </p>
+              <div className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
+                <p>
+                  No one else is heading that way right now. Your search stays open —
+                  check back, or ride with friends instead.
+                </p>
+                {/* Offered only to someone who has not already widened their
+                    pool. Suggesting it to a student who is open to everyone
+                    reads as the app blaming a setting they have already
+                    changed — and there is nothing left for them to do here. */}
+                {user?.matchOpenToAll === false && (
+                  <p className="mt-3">
+                    You are currently matched only with {user.gender} riders.{' '}
+                    <Link
+                      href="/profile"
+                      className="text-brand font-medium underline-offset-4 hover:underline"
+                    >
+                      Widen who you match with
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
             )}
 
             <div className="mt-10 flex items-center justify-between gap-4">

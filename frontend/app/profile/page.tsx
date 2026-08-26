@@ -19,12 +19,16 @@ import { MyReports } from '@/components/reports/my-reports';
 /**
  * Profile. REAL — every field comes from GET /api/auth/me.
  *
- * Two fields are editable and the rest are shown with a lock and a reason.
+ * Name and phone are editable and the rest are shown with a lock and a reason.
  * That split is the product rule, not a UI shortcut: gender, date of birth and
  * student ID are claims checked against an ID card, so changing one means
- * verifying again rather than typing, and gender in particular is the single
- * filter deciding who a student can ride with. PATCH /api/auth/me refuses them
- * outright — this screen says why before the request is ever made.
+ * verifying again rather than typing. PATCH /api/auth/me refuses them outright
+ * — this screen says why before the request is ever made.
+ *
+ * Matching preference is the one thing here that is neither: a choice rather
+ * than a claim, saved on its own the moment it is tapped. It is what a student
+ * changes instead of trying to change their gender, which is why it sits
+ * directly above the locked row explaining that they cannot.
  */
 export default function ProfilePage() {
   const router = useRouter();
@@ -92,6 +96,13 @@ export default function ProfilePage() {
             <p className="text-sm font-medium capitalize">{current.trustStage}</p>
           </section>
 
+          <MatchingPreference
+            user={current}
+            onSaved={(next) => {
+              setSaved(next);
+            }}
+          />
+
           {/* Two columns once there is room; one on a phone. */}
           <section className="space-y-4">
             <div className="flex items-baseline justify-between gap-4">
@@ -136,8 +147,9 @@ export default function ProfilePage() {
               </dl>
             )}
             <p className="text-muted-foreground text-xs leading-relaxed">
-              Locked fields come from your student ID or your northsouth.edu account.
-              Gender decides who you can be matched with, so it cannot be changed here.
+              Locked fields come from your student ID or your northsouth.edu account. They
+              are checked against it, so they cannot be retyped here. To change who you
+              are matched with, use your matching preference above.
             </p>
           </section>
 
@@ -325,4 +337,108 @@ function initials(name: string): string {
   const first = parts[0]?.[0] ?? '';
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return (first + last).toUpperCase();
+}
+
+/**
+ * Who this student is willing to be matched with on a stranger ride.
+ *
+ * Saved on tap rather than behind an Edit button, because it is one boolean
+ * with no way to be half-filled — and because the state it describes is one a
+ * student may want to change on the walk to the gate.
+ *
+ * Two labelled choices rather than a switch. A switch has a label and a
+ * position, and the reader has to work out which way round means what; for a
+ * decision about who gets in a car with you, both answers are written out.
+ * Same reasoning as onboarding's two large targets.
+ */
+function MatchingPreference({
+  user,
+  onSaved,
+}: {
+  user: User;
+  onSaved: (next: User) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  function choose(openToAll: boolean) {
+    if (openToAll === user.matchOpenToAll || saving) return;
+    setSaving(true);
+    api
+      .updateProfile({ matchOpenToAll: openToAll })
+      .then((next) => {
+        toast.success('Matching preference saved');
+        onSaved(next);
+      })
+      .catch((err: unknown) => {
+        toast.error(err instanceof ApiError ? err.message : 'Could not save');
+      })
+      .finally(() => {
+        setSaving(false);
+      });
+  }
+
+  const options = [
+    {
+      value: false,
+      title: 'Only riders of my own gender',
+      body: 'The default. You will never be shown to anyone else.',
+    },
+    {
+      value: true,
+      title: 'Anyone',
+      body: 'You will also be matched with riders of any gender — but only with people who have chosen this too.',
+    },
+  ];
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-sm font-semibold tracking-widest uppercase">
+        Matching preference
+      </h2>
+
+      <div
+        role="radiogroup"
+        aria-label="Who you can be matched with"
+        className="border-border border"
+      >
+        {options.map((option) => {
+          const selected = user.matchOpenToAll === option.value;
+          return (
+            <button
+              key={String(option.value)}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={saving}
+              onClick={() => {
+                choose(option.value);
+              }}
+              className={`border-border flex w-full cursor-pointer flex-col gap-1 border-b p-5 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-60 ${
+                selected ? 'bg-brand-muted' : 'hover:bg-muted/40'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span
+                  aria-hidden
+                  className={`size-3.5 shrink-0 rounded-full border-2 ${
+                    selected ? 'border-brand bg-brand' : 'border-muted-foreground'
+                  }`}
+                />
+                {option.title}
+              </span>
+              <span className="text-muted-foreground pl-[1.375rem] text-xs leading-relaxed">
+                {option.body}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        This applies to stranger matching only. Friends you have already met in person are
+        unaffected. You can change it whenever you like — it takes effect on your next
+        search.
+      </p>
+    </section>
+  );
 }

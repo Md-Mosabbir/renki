@@ -23,6 +23,7 @@ interface Row {
   email: string;
   gender: string;
   profile_completed_at: Date | null;
+  match_open_to_all: boolean;
 }
 
 async function main(): Promise<void> {
@@ -33,7 +34,7 @@ async function main(): Promise<void> {
   const term = process.argv[2]?.trim() ?? '';
 
   const { rows } = await query<Row>(
-    `SELECT id, name, email, gender, profile_completed_at
+    `SELECT id, name, email, gender, profile_completed_at, match_open_to_all
        FROM users
       WHERE $1 = '' OR name ILIKE $2 OR email ILIKE $2 OR id::text = $1
       ORDER BY gender, name`,
@@ -57,7 +58,13 @@ async function main(): Promise<void> {
     );
     for (const row of rows) {
       const ready = row.profile_completed_at ? 'onboarded' : 'NOT onboarded';
-      console.log(`  ${row.name.padEnd(20)} ${row.gender.padEnd(7)} ${ready}`);
+      // Matching preference is listed because it decides, with the other
+      // person's, whether these two can ever see each other's cards — the
+      // first thing to check when a deck comes back empty.
+      const matching = row.match_open_to_all ? 'open to all' : 'same gender';
+      console.log(
+        `  ${row.name.padEnd(20)} ${row.gender.padEnd(7)} ${matching.padEnd(12)} ${ready}`
+      );
     }
     console.log('');
     return;

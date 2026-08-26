@@ -61,12 +61,16 @@ export const MEETUP_CODE_TTL_SECONDS = 30;
 /**
  * Trust stages allowed to hold friendships.
  *
- * 'new' is in this list only because gender verification has no mounted route
+ * 'new' is in this list only because identity verification has no mounted route
  * yet, so every account in the database is 'new' and removing it would make the
- * feature untestable. That is a real weakness while it lasts: the same-gender
- * check below compares two SELF-ASSERTED genders. Verification is what turns it
- * into a check on two verified ones, and dropping 'new' from this array is the
- * single line that flips it.
+ * feature untestable. Dropping 'new' from this array is the single line that
+ * flips it, once there is a route that can promote an account past it.
+ *
+ * That weakness is now narrower than it was. This list used to also be what
+ * made the same-gender friendship rule meaningful, and that rule compared two
+ * SELF-ASSERTED genders — so it read as a guarantee while being an honour
+ * system. Friendships no longer turn on gender at all (see
+ * `ineligibilityReason`), so what is left here is only the trust ladder.
  */
 const FRIENDABLE_TRUST_STAGES: readonly TrustStage[] = ['new', 'verified', 'established'];
 
@@ -113,9 +117,18 @@ const ELIGIBILITY_COLUMNS = 'id, name, gender, trust_stage, profile_completed_at
  * Can these two people be friends at all?
  *
  * Checked when a request is sent AND again when the meetup scan lands, because
- * the two can be days apart and nothing freezes a profile in between. A student
- * who changes their gender after a request was accepted must not be confirmed
- * into a friendship the rule would now refuse.
+ * the two can be days apart and nothing freezes a profile in between.
+ *
+ * **Gender is deliberately not a condition here.** It was, until migration 27:
+ * a friendship required a shared gender, and friend rides skipped the stranger
+ * protocol on the grounds that a friends group was single-gender by
+ * construction. That is no longer the claim. What makes a friend ride safe is
+ * the thing it always actually was — both people met in person and scanned a
+ * live code — and that check is unchanged and does not depend on gender.
+ *
+ * The consequence to remember: a friends group may now be mixed, which is why
+ * `ride_groups.gender` accepts 'mixed' and `resolveGroupGender` in
+ * friend-group.service.ts computes it rather than asserting it.
  *
  * Returns the reason instead of throwing so discovery can use the same rules to
  * filter silently while the request endpoint turns them into a 403.
@@ -129,15 +142,6 @@ function ineligibilityReason(self: EligibilityRow, other: EligibilityRow): strin
   }
   if (other.profile_completed_at === null) {
     return 'That student has not finished setting up their account yet';
-  }
-  if (self.gender === 'unspecified' || other.gender === 'unspecified') {
-    return 'Both accounts need a confirmed gender before they can be friends';
-  }
-  // The product rule, and the reason friend rides can skip the stranger
-  // protocol: a friend group is a same-gender group by construction, so the
-  // check that matching does at ride time is already settled here.
-  if (self.gender !== other.gender) {
-    return 'Renki only connects students of the same gender';
   }
   if (!FRIENDABLE_TRUST_STAGES.includes(other.trust_stage)) {
     return 'That account is not verified yet';
@@ -300,9 +304,11 @@ export async function searchCandidates(
     `SELECT u.id, u.name, u.university, u.gender, u.trust_stage, u.profile_picture_url
        FROM users u
        JOIN users me ON me.id = $1
+      -- No gender predicate, as of migration 27. Friendships do not turn on
+      -- gender any more, and discovery must stay the silent-filter twin of
+      -- ineligibilityReason — a condition here that is not a condition there
+      -- hides people the request endpoint would happily accept.
       WHERE u.id <> me.id
-        AND u.gender = me.gender
-        AND u.gender <> 'unspecified'
         AND u.profile_completed_at IS NOT NULL
         AND me.profile_completed_at IS NOT NULL
         -- Renki is per-university. Two students who cannot meet on the same
