@@ -9,5 +9,17 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/scripts/**", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/scripts/**",
+    // src/test/** holds the integration harness, whose resetDb() TRUNCATEs
+    // every table. Nothing in the app imports it, but the same argument that
+    // keeps the token minter out of the image applies here with more force:
+    // a function that empties the database has no business being inside a
+    // production artifact at all.
+    "src/test/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

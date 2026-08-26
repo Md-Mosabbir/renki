@@ -14,7 +14,7 @@
     "start": "node dist/server.js",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
-    "//migrate:prod": "The shipped image has no tsx — it runs the compiled build.",
+    "//migrate:prod": "The shipped image has no tsx \u2014 it runs the compiled build.",
     "migrate:prod": "node dist/db/migrate.js",
     "//dev:token": "DEV ONLY. Mints a session token for a seeded account so you can be the second person in a two-person flow. Excluded from the build.",
     "dev:token": "tsx src/scripts/dev-token.ts",
@@ -26,7 +26,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test:watch": "vitest watch",
+    "//test:int": "Integration tests against a REAL Postgres. TRUNCATES every table \u2014 point DATABASE_URL at a scratch database.",
+    "test:int": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1118.0",
@@ -50,9 +52,11 @@
     "@types/multer": "^2.2.0",
     "@types/node": "^22.19.1",
     "@types/pg": "^8.20.3",
+    "@types/supertest": "^7.2.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
+    "supertest": "^7.2.2",
     "tsx": "^4.20.7",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",

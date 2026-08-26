@@ -83,6 +83,53 @@ jobs:
       - name: Test
         run: npm test -w @renki/backend
 
+  integration:
+    name: Integration tests (real Postgres)
+    runs-on: ubuntu-latest
+    # Only worth a database if the fast suite already passes.
+    needs: quality
+
+    # These tests TRUNCATE every table between cases, which is exactly why they
+    # get a throwaway service container and never a shared database.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: renki
+          POSTGRES_PASSWORD: renki
+          POSTGRES_DB: renki
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U renki -d renki"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 5432, not 5433. The host port mapping in docker-compose exists because a
+      # developer machine already has a system postgres on 5432; a CI service
+      # container has no such conflict. See CLAUDE.md.
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://renki:renki@localhost:5432/renki
+          NODE_ENV: test
+          CLIENT_ID: ci-client-id
+          JWT_SECRET: ci-secret-not-used-outside-ci
+          # Left empty on purpose: an unconfigured store selects the in-memory
+          # implementation, so CI needs no cloud account and no credentials.
+          STORAGE_ENDPOINT: ''
+        run: npm run test:int -w @renki/backend
+
   docker:
     name: Docker image builds and boots
     runs-on: ubuntu-latest

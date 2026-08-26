@@ -722,6 +722,74 @@ suspend someone it should never have touched.
 `POST /api/verification/gender` was deleted rather than kept as a shortcut. A
 client that computes its own verdict can simply report the one it wants.
 
+## Tests
+
+Two suites, and the split is the point.
+
+```bash
+npm test     -w @renki/backend     # unit: no database, ~300ms, runs everywhere
+npm run test:int -w @renki/backend # integration: real Postgres, TRUNCATES everything
+```
+
+**The unit suite must never touch a database.** `vitest.config.ts` points
+`DATABASE_URL` at a deliberately unreachable host so that a test which starts
+depending on one fails loudly instead of quietly making the fast suite slow.
+It covers what pure functions are for: the friendship transition table, profile
+validation, report reasons.
+
+**Everything that has actually broken was database-shaped.** Not one of these
+was reachable without a real Postgres, and every one was found by hand:
+
+- `$2` used both as an assigned value and in a comparison — "inconsistent types
+  deduced for parameter $2", a **500 on every moderator decision**, latent for
+  weeks because the query has to reach a real planner to fail
+- `chk_ride_groups_gender` refusing the mixed group the service had just been
+  taught to build
+- a moderator queue ordered by `created_at` on an UPSERTed row, so a retry sat
+  at the top forever
+- a missing `trust_stage` predicate in `candidate-query.ts`, which only became
+  wrong once a stage could move DOWN
+- a swipe hiding the card from the _other_ person, so no match could ever be
+  completed from the deck
+
+That list is why `*.int.test.ts` exists, and it is the right place to add a test
+after fixing anything in this file's other sections.
+
+**Isolation is truncate-and-reseed, not transaction rollback.** The services
+under test call `transaction()` themselves, so a test-level transaction would be
+the outer one and every nested BEGIN would have to become a SAVEPOINT threaded
+through every call site. Truncating is slower and far harder to get subtly
+wrong — and a suite that is subtly wrong about isolation is worse than no suite,
+because it goes green.
+
+**The table list is discovered from `pg_tables`, never hard-coded.** A written
+list was wrong within a minute. Its worse failure is later: a migration adds a
+table, nobody adds it here, and state leaks between tests as a flake in whichever
+test happens to run second.
+
+**`fileParallelism: false`, because every test truncates every table.** Two
+files at once delete each other's fixtures.
+
+**A regression test that has never failed is unproven.** Each of these was
+checked by reintroducing the bug and watching it go red. That step is not
+optional and it is not ceremony: the first version of "a challenged student
+vanishes from other people's decks" **passed with the predicate deleted**,
+because `issueChallenge` cancels the student's own request and the status filter
+was doing all the work. It proved nothing. The fix was to split the two
+mechanisms into two tests, one of which writes `trust_stage` directly so the
+request stays `pending` and only the predicate can remove the card. Write the
+test, break the code, watch it fail, then fix the code.
+
+**`src/test/**` is excluded from `tsconfig.build.json`.** `resetDb()` truncates
+every table, and the argument that keeps the token minter out of the production
+image applies here with more force.
+
+CI gives the integration job its own throwaway Postgres service container on
+**5432** — the 5433 mapping exists because a developer machine already has a
+system postgres, and a service container has no such conflict. `STORAGE_ENDPOINT`
+is set empty there, which selects the in-memory object store, so CI needs no
+cloud account.
+
 ## Architecture
 
 MVC, strictly layered: **routes → controllers → services → models**. Each layer
