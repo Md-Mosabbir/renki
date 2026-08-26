@@ -144,10 +144,33 @@ jobs:
             exit 1
           fi
 
+          # Scrub the variable before using it. A repository variable is typed
+          # or pasted into a web form, and a trailing space or newline survives
+          # that trip invisibly — the UI renders it identically to a clean
+          # value. curl then rejects the URL as malformed and never opens a
+          # connection, so the server logs show NO request at all and the loop
+          # below reports the same "nothing" it would report for a deploy still
+          # building. Two very different problems, one indistinguishable symptom.
+          #
+          # tr removes whitespace anywhere; %/ drops a trailing slash, which
+          # would otherwise produce //api/health and a 404.
+          API="$(printf '%s' "$API" | tr -d '[:space:]')"
+          API="${API%/}"
+
+          url="$API/api/health"
+          echo "polling $url for $SHA"
+
           # Render free instances cold-start, and a build takes a few minutes.
           # 60 attempts x 10s = 10 minutes.
+          misroutes=0
           for i in $(seq 1 60); do
-            body=$(curl -fsS --max-time 10 "$API/api/health" 2>/dev/null || true)
+            # Status and body captured separately. The previous version piped
+            # `curl -f` through `|| true`, which collapsed every failure — bad
+            # URL, DNS, 500, timeout — into an empty string identical to "still
+            # deploying", then printed that 60 times. A check that cannot say
+            # WHY it is failing is barely a check.
+            status=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 10 "$url" || echo "000")
+            body=$(cat /tmp/health.json 2>/dev/null || true)
             running=$(echo "$body" | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p')
 
             if [ "$running" = "$SHA" ]; then
@@ -156,11 +179,31 @@ jobs:
               exit 0
             fi
 
-            echo "attempt $i: serving '${running:-nothing}', waiting for ${SHA}"
+            # 000 means curl never got an HTTP response — DNS, TLS or a
+            # malformed URL. That is a configuration fault, not a deploy in
+            # progress, and it will not fix itself in ten minutes.
+            if [ "$status" = "000" ] && [ "$i" -ge 3 ]; then
+              echo "::error::Could not reach ${url} (curl exit, no HTTP response) after $i tries. Check PRODUCTION_API_URL."
+              exit 1
+            fi
+
+            # 404 likewise: the OLD instance answers /api/health throughout a
+            # deploy, so a 404 means the path is wrong, not that we are early.
+            if [ "$status" = "404" ]; then
+              misroutes=$((misroutes + 1))
+              if [ "$misroutes" -ge 3 ]; then
+                echo "::error::${url} returned 404 three times. PRODUCTION_API_URL must be the ORIGIN only (https://renki-api.onrender.com) — no /api suffix. Note it differs from NEXT_PUBLIC_API_URL, which does end in /api."
+                exit 1
+              fi
+            else
+              misroutes=0
+            fi
+
+            echo "attempt $i: HTTP $status, serving '${running:-no commit field}', waiting for ${SHA}"
             sleep 10
           done
 
-          echo "::error::API never reported commit ${SHA}. Check the Render deploy log."
+          echo "::error::API never reported commit ${SHA} (last HTTP $status). Check the Render deploy log."
           exit 1
 
   # ---------------------------------------------------------------- #
@@ -210,6 +253,9 @@ jobs:
             exit 1
           fi
 
+          # Same scrubbing as the API poll above, for the same reason.
+          WEB="$(printf '%s' "$WEB" | tr -d '[:space:]')"
+
           for i in $(seq 1 60); do
             if curl -fsS --max-time 10 -o /dev/null "$WEB"; then
               echo "::notice::Web is answering at ${WEB}"
@@ -236,6 +282,9 @@ jobs:
           API: ${{ vars.PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
+
+          API="$(printf '%s' "$API" | tr -d '[:space:]')"
+          API="${API%/}"
 
           echo "health:"
           curl -fsS "$API/api/health"
