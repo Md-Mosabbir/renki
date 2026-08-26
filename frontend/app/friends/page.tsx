@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, Loader2, ScanLine, Search, UserPlus, X } from 'lucide-react';
+import { Check, ScanLine, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
+import { HexLoader, HexSpinner } from '@/components/motion/hex';
 import { FriendRow } from '@/components/friends/friend-row';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -111,10 +112,7 @@ export default function FriendsPage() {
     return (
       <AppShell>
         <Page>
-          <div className="text-muted-foreground flex items-center gap-3 py-16 text-sm">
-            <Loader2 className="size-4 animate-spin" />
-            Loading
-          </div>
+          <HexLoader className="py-16" label="Loading your friends" />
         </Page>
       </AppShell>
     );
@@ -355,7 +353,7 @@ function AddFriends({ onAdded }: { onAdded: () => void }) {
 
       {searching ? (
         <div className="text-muted-foreground flex items-center gap-3 py-8 text-sm">
-          <Loader2 className="size-4 animate-spin" />
+          <HexSpinner className="size-4" />
           Searching
         </div>
       ) : candidates.length === 0 ? (

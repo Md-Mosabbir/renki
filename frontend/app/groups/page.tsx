@@ -9,6 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import type { Destination, RideGroup, User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { AppShell, Page } from '@/components/app-shell';
+import { HexLoader } from '@/components/motion/hex';
 import { GroupCard } from '@/components/groups/group-card';
 
 /**
@@ -151,7 +152,7 @@ export default function GroupsPage() {
             </p>
           </div>
 
-          <Button asChild size="sm" className="shrink-0 rounded-none">
+          <Button asChild size="sm" className="shrink-0 rounded-full">
             <Link href="/groups/new">
               <Plus className="size-4" />
               New
@@ -166,7 +167,7 @@ export default function GroupsPage() {
         )}
 
         {groups === null && error === null && (
-          <p className="text-muted-foreground text-sm">Loading…</p>
+          <HexLoader className="py-16" label="Loading your groups" />
         )}
 
         {groups !== null && groups.length === 0 && (

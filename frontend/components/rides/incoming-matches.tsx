@@ -106,7 +106,7 @@ export function IncomingMatches({ onMatched }: { onMatched?: () => void }) {
                 size="sm"
                 disabled={busy !== null}
                 onClick={() => answer(match, true)}
-                className="rounded-none"
+                className="rounded-full"
               >
                 <Check className="size-3.5" />
                 Accept
@@ -116,7 +116,7 @@ export function IncomingMatches({ onMatched }: { onMatched?: () => void }) {
                 variant="outline"
                 disabled={busy !== null}
                 onClick={() => answer(match, false)}
-                className="rounded-none"
+                className="rounded-full"
               >
                 <X className="size-3.5" />
                 Pass

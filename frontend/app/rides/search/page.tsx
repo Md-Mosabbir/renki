@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
@@ -20,6 +20,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { SwipeDeck } from '@/components/rides/swipe-deck';
 import { PinPicker } from '@/components/map/pin-picker';
+import { HexLoader, HexSpinner, SearchingRings } from '@/components/motion/hex';
+import { SearchStatus } from '@/components/rides/search-status';
+import { MatchesSheet } from '@/components/rides/matches-sheet';
 import type { PinValue } from '@/components/map/pin-picker';
 
 /**
@@ -65,6 +68,7 @@ export default function StrangerSearchPage() {
    */
   const [destinationMode, setDestinationMode] = useState<'saved' | 'pin'>('pin');
   const [pin, setPin] = useState<PinValue | null>(null);
+  const [showMatches, setShowMatches] = useState(false);
   const [departure, setDeparture] = useState(defaultDeparture);
 
   const loadDeck = useCallback((requestId: string) => {
@@ -222,7 +226,9 @@ export default function StrangerSearchPage() {
           Rides
         </Link>
 
-        {phase === 'loading' && <p className="text-muted-foreground text-sm">Loading…</p>}
+        {phase === 'loading' && (
+          <HexLoader className="py-20" label="Loading your rides" />
+        )}
 
         {phase === 'composing' && (
           <>
@@ -342,14 +348,10 @@ export default function StrangerSearchPage() {
                   (destinationMode === 'pin' ? pin === null : destinationId === '')
                 }
                 onClick={startSearch}
-                className="h-14 w-full justify-between rounded-none text-base"
+                className="h-14 w-full justify-between rounded-full text-base"
               >
                 {busy ? 'Searching…' : 'Find riders'}
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Search className="size-4" />
-                )}
+                {busy ? <HexSpinner className="size-4" /> : <Search className="size-4" />}
               </Button>
             </div>
           </>
@@ -357,16 +359,29 @@ export default function StrangerSearchPage() {
 
         {phase === 'swiping' && (
           <>
-            <header className="mb-8">
-              <h1 className="text-2xl font-medium tracking-tight">Going your way</h1>
-              {deck !== null && (
-                <p className="text-muted-foreground mt-2 text-sm">
-                  {deck.candidates.length === 0
-                    ? 'Nobody yet.'
-                    : `${String(deck.candidates.length)} ${deck.candidates.length === 1 ? 'person' : 'people'} leaving within ${String(deck.windowMinutes)} minutes of you.`}
-                </p>
-              )}
-            </header>
+            {/* The evidence that a search is open. Previously this screen
+                looked the same whether or not one was. */}
+            {request !== null && (
+              <SearchStatus
+                destinationLabel={destinationLabelOf(request, destinations, pin)}
+                departureTime={request.departureTime}
+                found={deck?.candidates.length ?? 0}
+                onCancel={cancel}
+                onShowMatches={() => {
+                  setShowMatches(true);
+                }}
+                busy={busy}
+              />
+            )}
+
+            {deck !== null && (
+              <MatchesSheet
+                open={showMatches}
+                onOpenChange={setShowMatches}
+                cards={deck.candidates}
+                windowMinutes={deck.windowMinutes}
+              />
+            )}
 
             {error !== null && (
               <p className="border-border text-muted-foreground mb-8 border-l-2 py-1 pl-4 text-sm">
@@ -375,15 +390,21 @@ export default function StrangerSearchPage() {
             )}
 
             {deck !== null && deck.candidates.length > 0 && (
-              <SwipeDeck cards={deck.candidates} onAnswer={answer} busy={busy} />
+              <div className="animate-rise-in">
+                <SwipeDeck cards={deck.candidates} onAnswer={answer} busy={busy} />
+              </div>
             )}
 
             {deck !== null && deck.candidates.length === 0 && (
-              <div className="border-border text-muted-foreground border-l-2 py-1 pl-4 text-sm leading-relaxed">
-                <p>
-                  No one else is heading that way right now. Your search stays open —
-                  check back, or ride with friends instead.
-                </p>
+              <div className="text-muted-foreground text-sm leading-relaxed">
+                {/* The k-ring the matcher is actually expanding, rather than a
+                    spinner that would look the same on any screen. An empty
+                    deck is "still looking", not "nothing happened". */}
+                <SearchingRings
+                  label="No one yet"
+                  sublabel={`Your search stays open · within ${String(deck.windowMinutes)} min of you`}
+                />
+                <p className="mt-4">Check back in a bit, or ride with friends instead.</p>
                 {/* Offered only to someone who has not already widened their
                     pool. Suggesting it to a student who is open to everyone
                     reads as the app blaming a setting they have already
@@ -409,7 +430,7 @@ export default function StrangerSearchPage() {
                 size="sm"
                 disabled={busy}
                 onClick={cancel}
-                className="rounded-none"
+                className="rounded-full"
               >
                 Cancel search
               </Button>
@@ -431,4 +452,22 @@ function defaultDeparture(): string {
   const when = new Date(Date.now() + 60 * 60 * 1000);
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${String(when.getFullYear())}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+}
+
+/**
+ * What to call the place they are going, on the status bar.
+ *
+ * A pin carries its own name from the geocoder; a saved landmark has to be
+ * looked up. Falls back rather than rendering an id — a status bar reading
+ * "To 8f3c1a…" is worse than one reading "To your pin".
+ */
+function destinationLabelOf(
+  request: RideRequest,
+  destinations: Destination[],
+  pin: PinValue | null
+): string {
+  const saved = destinations.find((place) => place.id === request.destinationLocationId);
+  if (saved) return saved.label;
+  if (pin !== null && pin.address !== '') return pin.address;
+  return 'your pin';
 }

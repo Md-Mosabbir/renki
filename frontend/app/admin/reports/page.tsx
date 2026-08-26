@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api, ApiError, REPORT_REASON_LABELS, REPORT_STATUS_LABELS } from '@/lib/api';
 import type { AdminReport, ReportStatus, ReviewAction } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
+import { HexLoader } from '@/components/motion/hex';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
 
@@ -164,13 +165,7 @@ export default function AdminReportsPage() {
             ))}
           </div>
 
-          {reports === null && (
-            <div
-              className="bg-brand size-3 animate-pulse"
-              role="status"
-              aria-label="Loading"
-            />
-          )}
+          {reports === null && <HexLoader className="py-16" label="Loading the queue" />}
 
           {reports !== null && reports.length === 0 && (
             <div className="border-border bg-muted/30 border-l-2 p-6">
@@ -275,7 +270,7 @@ function ReportRow({
             onClick={() => {
               onChallenge(report);
             }}
-            className="cursor-pointer rounded-none"
+            className="cursor-pointer rounded-full"
           >
             <UserRoundSearch className="size-4" />
             Ask them to confirm
@@ -292,7 +287,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'under_review');
             }}
-            className="rounded-none"
+            className="rounded-full"
           >
             Look into it
           </Button>
@@ -304,7 +299,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'resolved');
             }}
-            className="rounded-none"
+            className="rounded-full"
           >
             Resolve
           </Button>
@@ -317,7 +312,7 @@ function ReportRow({
             onClick={() => {
               onReview(report.id, 'dismissed');
             }}
-            className="rounded-none"
+            className="rounded-full"
           >
             Dismiss
           </Button>

@@ -3,13 +3,14 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, QrCode, ScanLine } from 'lucide-react';
+import { ArrowLeft, QrCode, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import { CODE_SESSION_SECONDS, useRotatingCode } from '@/lib/use-rotating-code';
 import { buildRideStartLink, extractMeetupCode } from '@/lib/meetup-link';
 import { AppShell, Page } from '@/components/app-shell';
+import { HexSpinner } from '@/components/motion/hex';
 import { Button } from '@/components/ui/button';
 import { MeetupBlob } from '@/components/meetup/meetup-blob';
 import { MeetupCodePlate } from '@/components/meetup/meetup-code-plate';
@@ -146,13 +147,9 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
               <Button
                 onClick={restart}
                 disabled={busy}
-                className="mx-auto mt-4 flex rounded-none"
+                className="mx-auto mt-4 flex rounded-full"
               >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <QrCode className="size-4" />
-                )}
+                {busy ? <HexSpinner className="size-4" /> : <QrCode className="size-4" />}
                 New code
               </Button>
             )}
@@ -173,7 +170,7 @@ export function StartRideScreen({ groupId }: { groupId: string }) {
           <Button
             variant="ghost"
             size="sm"
-            className="rounded-none"
+            className="rounded-full"
             onClick={() => {
               setMode((current) => (current === 'show' ? 'scan' : 'show'));
             }}

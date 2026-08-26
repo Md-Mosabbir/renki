@@ -3,18 +3,11 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  ArrowRight,
-  Clock,
-  Loader2,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, Clock, Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppShell, Page } from '@/components/app-shell';
+import { HexLoader, HexSpinner } from '@/components/motion/hex';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
 import { useSession } from '@/lib/use-session';
 import { api, ApiError } from '@/lib/api';
@@ -213,9 +206,7 @@ const SAMPLE_RIDES = [
 function LoadingScreen() {
   return (
     <div className="flex flex-1 items-center justify-center">
-      {/* A pulsing mark, not a spinner — the accent already means "something is
-          happening" everywhere else in the app. */}
-      <div className="bg-brand size-3 animate-pulse" aria-label="Loading" role="status" />
+      <HexLoader label="Loading" />
     </div>
   );
 }
@@ -320,7 +311,7 @@ function TrustBanner({
           <Button onClick={() => void verify()} disabled={pending}>
             {pending ? (
               <>
-                <Loader2 className="size-4 animate-spin" />
+                <HexSpinner className="size-4" />
                 Verifying
               </>
             ) : (

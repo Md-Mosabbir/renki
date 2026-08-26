@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 import { ApiError, session } from '@/lib/api';
+import { HexSpinner } from '@/components/motion/hex';
 import { devApi } from '@/lib/api/http';
 import type { User } from '@/lib/api';
 import { postSignInPath } from '@/lib/redirect';
@@ -92,7 +93,7 @@ export function DevSignIn() {
         <div className="border-border border-t px-2 pt-2 pb-3">
           {users === null ? (
             <p className="text-muted-foreground flex items-center gap-2 px-2 py-3 text-sm">
-              <Loader2 className="size-3.5 animate-spin" />
+              <HexSpinner className="size-3.5" />
               Loading accounts
             </p>
           ) : users.length === 0 ? (
@@ -128,7 +129,7 @@ export function DevSignIn() {
                       </span>
                     </span>
                     {pendingEmail === user.email && (
-                      <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                      <HexSpinner className="size-3.5 shrink-0" />
                     )}
                   </button>
                 </li>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BellOff, Loader2, Send } from 'lucide-react';
+import { Bell, BellOff, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
@@ -13,6 +13,7 @@ import {
   subscribe,
 } from '@/lib/push';
 import { Button } from '@/components/ui/button';
+import { HexSpinner } from '@/components/motion/hex';
 
 /**
  * Turning notifications on, and proving they work.
@@ -158,10 +159,10 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
           variant={subscribed ? 'outline' : 'default'}
           disabled={busy || (needsInstall && !subscribed)}
           onClick={subscribed ? disable : enable}
-          className="rounded-none"
+          className="rounded-full"
         >
           {busy ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <HexSpinner className="size-3.5" />
           ) : subscribed ? (
             <BellOff className="size-3.5" />
           ) : (
@@ -177,7 +178,7 @@ export function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
             variant="outline"
             disabled={busy}
             onClick={sendTest}
-            className="rounded-none"
+            className="rounded-full"
           >
             <Send className="size-3.5" />
             Send test

@@ -2,10 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, ShieldCheck, Users, MapPin } from 'lucide-react';
+import { ShieldCheck, Users, MapPin } from 'lucide-react';
 
 import { api, ApiError, session } from '@/lib/api';
 import { GoogleSignIn } from '@/components/auth/google-sign-in';
+import { HexSpinner } from '@/components/motion/hex';
 import { DevSignIn } from '@/components/auth/dev-sign-in';
 import { Wordmark } from '@/components/brand/wordmark';
 import { postSignInPath } from '@/lib/redirect';
@@ -113,7 +114,7 @@ export default function SignInPage() {
 
             {pending && (
               <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Loader2 className="size-3.5 animate-spin" />
+                <HexSpinner className="size-3.5" />
                 Signing you in…
               </p>
             )}

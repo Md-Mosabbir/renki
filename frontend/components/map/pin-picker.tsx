@@ -2,11 +2,12 @@
 
 import { useCallback, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Crosshair, Loader2, Search } from 'lucide-react';
+import { Crosshair, Search } from 'lucide-react';
 
 import { geo } from '@/lib/geo';
 import type { GeoPoint, Place } from '@/lib/geo';
 import { Button } from '@/components/ui/button';
+import { HexSpinner } from '@/components/motion/hex';
 
 /**
  * Drop a pin, get coordinates and a name for them.
@@ -132,7 +133,7 @@ export function PinPicker({
             aria-label="Search for a destination"
             className="h-11 w-full bg-transparent text-base focus-visible:outline-none"
           />
-          {searching && <Loader2 className="text-muted-foreground size-4 animate-spin" />}
+          {searching && <HexSpinner className="text-muted-foreground size-4" />}
         </div>
 
         <Button
@@ -142,10 +143,10 @@ export function PinPicker({
           onClick={useMyLocation}
           disabled={locating}
           aria-label="Use my current location"
-          className="h-11 w-11 shrink-0 rounded-none"
+          className="h-11 w-11 shrink-0 rounded-full"
         >
           {locating ? (
-            <Loader2 className="size-4 animate-spin" />
+            <HexSpinner className="size-4" />
           ) : (
             <Crosshair className="size-4" />
           )}

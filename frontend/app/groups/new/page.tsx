@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api';
 import type { Destination, FriendGraph } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { HexSpinner } from '@/components/motion/hex';
 import { Label } from '@/components/ui/label';
 import { AppShell, Page } from '@/components/app-shell';
 import { FriendPicker } from '@/components/groups/friend-picker';
@@ -191,14 +192,10 @@ export default function NewGroupPage() {
               size="lg"
               disabled={!ready || pending}
               onClick={() => void submit()}
-              className="h-14 w-full justify-between rounded-none text-base"
+              className="h-14 w-full justify-between rounded-full text-base"
             >
               {pending ? 'Sending invitations…' : 'Send invitations'}
-              {pending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Users className="size-4" />
-              )}
+              {pending ? <HexSpinner className="size-4" /> : <Users className="size-4" />}
             </Button>
 
             <p className="text-muted-foreground text-xs leading-relaxed">

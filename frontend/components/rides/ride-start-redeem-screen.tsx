@@ -85,7 +85,7 @@ export function RideStartRedeemScreen({ code }: { code: string }) {
                 ? 'The ride has started.'
                 : `Riding with ${group.members.map((m) => m.name.split(' ')[0]).join(' and ')}.`}
             </p>
-            <Button asChild className="mt-8 rounded-none">
+            <Button asChild className="mt-8 rounded-full">
               <Link href="/groups">See the ride</Link>
             </Button>
           </>
@@ -95,7 +95,7 @@ export function RideStartRedeemScreen({ code }: { code: string }) {
           <>
             <h1 className="text-2xl font-medium tracking-tight">That did not work</h1>
             <p className="text-muted-foreground mt-2 text-sm">{message}</p>
-            <Button asChild variant="outline" className="mt-8 rounded-none">
+            <Button asChild variant="outline" className="mt-8 rounded-full">
               <Link href="/groups">Back to groups</Link>
             </Button>
           </>
