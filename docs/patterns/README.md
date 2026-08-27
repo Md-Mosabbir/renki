@@ -4,20 +4,20 @@ Six patterns, four people. Four are in the codebase; two are to be written.
 Each one does a job the app genuinely needs — none of them were added to tick a
 box, and each doc starts by showing the real problem it solves.
 
-| Pattern         | Owner    | Where the code lives                 | Doc                                                        |
-| --------------- | -------- | ------------------------------------ | ---------------------------------------------------------- |
-| Singleton ✅    | Mosabbir | `backend/src/db/pool.ts`             | in the file                                                |
-| Strategy ✅     | Mosabbir | `backend/src/services/matching/`     | in the files                                               |
-| **Observer** ✅ | Enamul   | `backend/src/events/`                | [doc](../../backend/src/events/README.md)                  |
-| **Factory** ✅  | Partho   | `backend/src/services/groups/`       | [doc](../../backend/src/services/groups/README.md)         |
-| **Adapter**     | Shikder  | `backend/src/services/integrations/` | [guide](../../backend/src/services/integrations/README.md) |
-| **Proxy**       | Shikder  | `backend/src/services/geocoding/`    | [guide](../../backend/src/services/geocoding/README.md)    |
+| Pattern         | Owner    | Where the code lives              | Doc                                                             |
+| --------------- | -------- | --------------------------------- | --------------------------------------------------------------- |
+| Singleton ✅    | Mosabbir | `backend/src/db/pool.ts`          | in the file                                                     |
+| Strategy ✅     | Mosabbir | `backend/src/services/matching/`  | in the files                                                    |
+| **Observer** ✅ | Enamul   | `backend/src/events/`             | [doc](../../backend/src/events/README.md)                       |
+| **Factory** ✅  | Partho   | `backend/src/services/groups/`    | [doc](../../backend/src/services/groups/README.md)              |
+| **Adapter**     | Shikder  | `backend/src/services/geocoding/` | [guide](../../backend/src/services/geocoding/README.md#adapter) |
+| **Proxy**       | Shikder  | `backend/src/services/geocoding/` | [guide](../../backend/src/services/geocoding/README.md#proxy)   |
 
 The two ✅ rows in bold were written by their owners and are merged. Their
 READMEs are now **documentation of what exists**, not briefs — the remaining two
 are still briefs, written in the second person, describing work to do.
 
-### Three entries changed after the table was first written
+### Four entries changed after the table was first written
 
 **Observer is built and merged.** The app was silent — a friend request, a match
 or a cancellation reached nobody. The bus, both subscribers and
@@ -29,6 +29,23 @@ reach the table with a kind `chk_notifications_kind` accepts.
 `grep -rn "INSERT INTO ride_groups" backend/src` returns exactly one hit, inside
 the factory. Both creation paths — `createFriendGroup` and `createMatchedGroup`
 — go through it, and `create()` contains no `if` and reads no `kind` string.
+
+**Adapter and Proxy both moved to `services/geocoding/`, and both briefs were
+rewritten.** They rested on two premises that are not true: the Adapter assumed
+Renki calls Uber's and Pathao's APIs, and the Proxy assumed Google Maps charging
+per request. Renki calls **no ride-hailing API at all** — Uber's Ride Request
+programme has been closed to new small applicants for years, so
+`lib/rides/handoff.ts` opens a deep link and there is no response to translate.
+And there is no billing card, so geocoding is **OpenStreetMap's Nominatim**.
+
+The replacement is a problem the app has today. Geocoding runs entirely in the
+browser, so a failed lookup writes `address = NULL` and every swipe card for
+that pin reads "Unnamed" forever; nothing is cached between students; and the
+address other people read is client-supplied. Moving it behind one interface
+needs an Adapter for Nominatim's shape and two Proxies for access — a shared
+cache, and the 1 req/sec limit that only really bites once it is one server IP
+instead of fifty browsers. Both patterns wrap the same interface, which is the
+clearest way to show the difference, so they share a folder and a document.
 
 **Factory moved from `services/codes/` to `services/groups/`.** The original
 brief argued that verification codes need a carefully chosen alphabet because
