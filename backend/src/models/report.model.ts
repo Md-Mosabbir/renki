@@ -88,12 +88,28 @@ export interface PublicReport {
   createdAt: string;
 }
 
-/** A report as a MODERATOR sees it: both parties named, plus review state. */
+/**
+ * A report as a MODERATOR sees it: both parties named, plus review state.
+ *
+ * The two counts are the context a decision needs. "A human decides" is the
+ * whole answer to why there is no automatic threshold, and it is only a better
+ * answer than a threshold if the human can see what a threshold would have
+ * seen: the fourth complaint about somebody otherwise looks exactly like the
+ * first, and so does a report from a student who has filed nine this month.
+ *
+ * Counts, never the other reports. A moderator working one case has no
+ * business reading the text of unrelated ones — the number is what tells them
+ * whether to go and look.
+ */
 export interface AdminReport extends PublicReport {
   reporterId: string;
   reporterName: string;
   reviewedAt: string | null;
   reviewedByUserId: string | null;
+  /** Every report ever filed about the reported person, this one included. */
+  reportsAboutReported: number;
+  /** Every report the REPORTER has filed. High numbers are the griefing shape. */
+  reportsByReporter: number;
 }
 
 export interface ReportInput {

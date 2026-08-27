@@ -1,4 +1,4 @@
-import { httpApi, reportsApi } from './http';
+import { httpApi, notificationsApi, reportsApi } from './http';
 
 export * from './types';
 
@@ -91,6 +91,19 @@ export const api = {
   /** GET /api/rides/history — the only reader of `ride_histories`. Paged. */
   rideHistory: httpApi.rideHistory,
 
+  // ---- REAL — served by backend/src/routes/notifications.routes.ts ----
+  //
+  // The RECORD, not the transport. push.service.ts makes a phone buzz and
+  // forgets; these rows are what a student finds on opening the app after the
+  // buzz never came — the permission was declined, the PWA was never installed,
+  // or the phone was simply off. Both halves fire for every event on purpose.
+  /** GET /api/notifications — newest first, 50 max, with an unread count. */
+  notifications: notificationsApi.notifications,
+  /** POST /api/notifications/:id/read */
+  markNotificationRead: notificationsApi.markNotificationRead,
+  /** POST /api/notifications/read-all */
+  markAllNotificationsRead: notificationsApi.markAllNotificationsRead,
+
   // ---- REAL — served by backend/src/routes/reports.routes.ts ----
   /** POST /api/reports — does NOT block; see blockUser. */
   report: reportsApi.report,
@@ -115,6 +128,10 @@ export const api = {
   challengeQueue: reportsApi.challengeQueue,
   /** POST /api/admin/challenges — ask a student to answer an allegation. */
   issueChallenge: reportsApi.issueChallenge,
+  /** POST /api/admin/reports/:id/suspend — the queue's only real consequence. */
+  suspendReported: reportsApi.suspendReported,
+  /** POST /api/admin/users/:id/reinstate — undo one. */
+  reinstateUser: reportsApi.reinstateUser,
   /** PATCH /api/admin/challenges/:id — rule; the photo is destroyed either way. */
   resolveChallenge: reportsApi.resolveChallenge,
   /** GET /api/admin/reports — 404s for non-moderators, by design. */

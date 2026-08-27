@@ -1,5 +1,6 @@
 import { ApiError } from './types';
 import type {
+  NotificationPage,
   AdminReportPage,
   AuthResult,
   Challenge,
@@ -530,7 +531,7 @@ export const reportsApi = {
    * Deliberately separate from reading the report that prompted it: a report
    * alone must never compel somebody to photograph themselves.
    */
-  async issueChallenge(userId: string, reportId?: string): Promise<Challenge> {
+  async issueChallenge(userId: string, reportId: string): Promise<Challenge> {
     const { challenge } = await request<{ challenge: Challenge }>('/admin/challenges', {
       auth: true,
       method: 'POST',
@@ -545,6 +546,29 @@ export const reportsApi = {
       auth: true,
       method: 'PATCH',
       body: JSON.stringify({ cleared, note }),
+    });
+  },
+
+  /**
+   * Moderator only. Suspend the subject of a report.
+   *
+   * Addressed to the REPORT, not to a user id, so every suspension has a cause
+   * on file that the next moderator can read. The report is closed by the same
+   * transaction.
+   */
+  async suspendReported(reportId: string, reason?: string): Promise<void> {
+    await request<unknown>(`/admin/reports/${reportId}/suspend`, {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /** Moderator only. Undo a suspension, restoring the stage held before it. */
+  async reinstateUser(userId: string): Promise<void> {
+    await request<unknown>(`/admin/users/${userId}/reinstate`, {
+      auth: true,
+      method: 'POST',
     });
   },
 
@@ -568,5 +592,30 @@ export const reportsApi = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+  },
+};
+
+/**
+ * The notification RECORD — the half that survives a phone being off.
+ *
+ * Push is fire-and-forget: the message reaches a device that is awake, or it
+ * sits in Google's / Mozilla's / Apple's queue until its TTL runs out. These
+ * rows are what makes a missed push recoverable, and for a student who never
+ * granted the permission they are the only notification that ever existed.
+ */
+export const notificationsApi = {
+  /** GET /api/notifications — newest first, capped at 50 by the server. */
+  async notifications(): Promise<NotificationPage> {
+    return request<NotificationPage>('/notifications', { auth: true });
+  },
+
+  /** POST /api/notifications/:id/read */
+  async markNotificationRead(id: string): Promise<void> {
+    await request<unknown>(`/notifications/${id}/read`, { auth: true, method: 'POST' });
+  },
+
+  /** POST /api/notifications/read-all */
+  async markAllNotificationsRead(): Promise<void> {
+    await request<unknown>('/notifications/read-all', { auth: true, method: 'POST' });
   },
 };
