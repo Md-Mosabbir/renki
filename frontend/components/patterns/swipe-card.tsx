@@ -42,7 +42,10 @@ export function SwipeCard({
         className
       )}
       style={{
-        transform: offset !== 0 ? `translateX(${String(offset)}px) rotate(${String(offset / 22)}deg)` : undefined,
+        transform:
+          offset !== 0
+            ? `translateX(${String(offset)}px) rotate(${String(offset / 22)}deg)`
+            : undefined,
         transition: 'transform 200ms ease-out',
       }}
     >
@@ -81,7 +84,10 @@ export function SwipeCard({
       <dl className="mt-8 space-y-5">
         {facts.map((fact) => (
           <div key={fact.label} className="flex items-start gap-3">
-            <fact.icon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+            <fact.icon
+              className="text-muted-foreground mt-0.5 size-4 shrink-0"
+              aria-hidden
+            />
             <div className="min-w-0">
               <dt className="text-muted-foreground text-xs tracking-widest uppercase">
                 {fact.label}
