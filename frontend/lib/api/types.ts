@@ -573,3 +573,109 @@ export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   resolved: 'Resolved',
   dismissed: 'Dismissed',
 };
+
+/* ------------------------------------------------------------------ *
+ * Notifications
+ * ------------------------------------------------------------------ */
+
+/**
+ * The RECORD half of notifications, as opposed to the transport half.
+ *
+ * A Web Push message is fire-and-forget: it reaches a phone that is on, or it
+ * is queued by Google/Mozilla/Apple and dropped after its TTL. These rows are
+ * the durable answer to "what happened while I was away" — they exist whether
+ * or not a push ever arrived, and for the roughly half of students on an iPhone
+ * that never installed the PWA, they are the ONLY answer.
+ *
+ * Mirrors PublicNotification in backend/src/services/notification.service.ts.
+ */
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  /** First name of whoever caused it. Null for events with no actor. */
+  actorName: string | null;
+  rideGroupId: string | null;
+  friendshipId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+/** `chk_notifications_kind`. Mirrored by hand; the CHECK is the authority. */
+export type NotificationKind =
+  | 'ride_matched'
+  | 'swipe_received'
+  | 'ride_started'
+  | 'ride_completed'
+  | 'ride_cancelled'
+  | 'friend_request'
+  | 'friend_confirmed'
+  | 'group_invite'
+  | 'group_ready'
+  | 'report_filed';
+
+export interface NotificationPage {
+  notifications: AppNotification[];
+  unread: number;
+}
+
+/**
+ * What each kind says, and where tapping it goes.
+ *
+ * One table rather than a switch in the component, for the same reason
+ * REPORT_REASON_LABELS is one table: the alternative is a `kind` the backend
+ * added and the UI renders as a raw string like `group_ready`.
+ *
+ * `%s` is the actor's first name. A kind with no actor must not use it — the
+ * CHECK allows actor_user_id to be NULL, and 'someone' is a worse sentence
+ * than one written without a name in the first place.
+ */
+export const NOTIFICATION_COPY: Record<
+  NotificationKind,
+  { text: (actor: string | null) => string; href: (n: AppNotification) => string }
+> = {
+  friend_request: {
+    text: (a) => `${a ?? 'Someone'} wants to be friends`,
+    href: () => '/friends',
+  },
+  friend_confirmed: {
+    text: (a) => `You and ${a ?? 'someone'} are now friends`,
+    href: () => '/friends',
+  },
+  swipe_received: {
+    // Never names them. Whose yes it is becomes visible when you open the deck
+    // and decide for yourself — a lock screen naming somebody who picked you is
+    // a different thing from a list you chose to open.
+    text: () => 'Someone wants to share your ride',
+    href: () => '/rides',
+  },
+  ride_matched: {
+    text: (a) => `You matched with ${a ?? 'a rider'}`,
+    href: (n) => (n.rideGroupId ? `/groups/${n.rideGroupId}` : '/groups'),
+  },
+  ride_started: {
+    text: () => 'Your ride has started',
+    href: (n) => (n.rideGroupId ? `/groups/${n.rideGroupId}` : '/groups'),
+  },
+  ride_completed: {
+    text: () => 'Your ride is finished',
+    href: () => '/history',
+  },
+  ride_cancelled: {
+    text: (a) => `${a ?? 'Someone'} cancelled the ride`,
+    href: () => '/history',
+  },
+  group_invite: {
+    text: (a) => `${a ?? 'Someone'} invited you to a ride`,
+    href: (n) => (n.rideGroupId ? `/groups/${n.rideGroupId}` : '/groups'),
+  },
+  group_ready: {
+    text: () => 'Everyone has accepted. Your ride is on',
+    href: (n) => (n.rideGroupId ? `/groups/${n.rideGroupId}` : '/groups'),
+  },
+  report_filed: {
+    // Names nobody at all. Who reported whom is exactly what must not appear
+    // in a list somebody might read over your shoulder.
+    text: () => 'A new report is waiting in the queue',
+    href: () => '/admin/reports',
+  },
+};

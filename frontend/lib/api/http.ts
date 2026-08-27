@@ -1,5 +1,6 @@
 import { ApiError } from './types';
 import type {
+  NotificationPage,
   AdminReportPage,
   AuthResult,
   Challenge,
@@ -591,5 +592,30 @@ export const reportsApi = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+  },
+};
+
+/**
+ * The notification RECORD — the half that survives a phone being off.
+ *
+ * Push is fire-and-forget: the message reaches a device that is awake, or it
+ * sits in Google's / Mozilla's / Apple's queue until its TTL runs out. These
+ * rows are what makes a missed push recoverable, and for a student who never
+ * granted the permission they are the only notification that ever existed.
+ */
+export const notificationsApi = {
+  /** GET /api/notifications — newest first, capped at 50 by the server. */
+  async notifications(): Promise<NotificationPage> {
+    return request<NotificationPage>('/notifications', { auth: true });
+  },
+
+  /** POST /api/notifications/:id/read */
+  async markNotificationRead(id: string): Promise<void> {
+    await request<unknown>(`/notifications/${id}/read`, { auth: true, method: 'POST' });
+  },
+
+  /** POST /api/notifications/read-all */
+  async markAllNotificationsRead(): Promise<void> {
+    await request<unknown>('/notifications/read-all', { auth: true, method: 'POST' });
   },
 };
