@@ -22,10 +22,11 @@ adding one listener and touching nothing else.
 ```
 backend/src/events/
   domain-event.ts       the shape of an event, and the list of event types
-  event-bus.ts          the Observer itself: subscribe, publish
+  event-bus.ts          Subject + Observer interfaces, and the concrete EventBus
   index.ts              re-exports, so callers import from one place
   subscribers/
-    notification.subscriber.ts   turns events into rows in `notifications`
+    notification.subscriber.ts   concrete Observer that writes `notifications`
+    push.subscriber.ts           concrete Observer that sends push notifications
 ```
 
 Plus a service and routes so a student can actually read them:
@@ -72,43 +73,55 @@ export interface DomainEvent {
 > bug — that constraint is there specifically to catch a subscriber that loops
 > over group members and forgets to skip the person who triggered the event.
 
-## Step 2 — the bus (this is the pattern)
+## Step 2 - Subject, Observer and EventBus (this is the pattern)
 
 `backend/src/events/event-bus.ts`
 
 ```ts
-import type { DomainEvent, DomainEventName } from './domain-event.js';
+import type { DomainEvent } from './domain-event.js';
 
-export type Subscriber = (event: DomainEvent) => Promise<void> | void;
+export interface Observer {
+  update(event: DomainEvent): Promise<void> | void;
+}
 
-class EventBus {
-  private subscribers = new Map<DomainEventName, Subscriber[]>();
+export interface Subject {
+  registerObserver(observer: Observer): void;
+  unregisterObserver(observer: Observer): void;
+  notifyObservers(event: DomainEvent): Promise<void>;
+}
 
-  subscribe(name: DomainEventName, subscriber: Subscriber): void {
-    // add to the list for that name
-  }
+class EventBus implements Subject {
+  private observers = new Set<Observer>();
+
+  registerObserver(observer: Observer): void;
+  unregisterObserver(observer: Observer): void;
+  notifyObservers(event: DomainEvent): Promise<void>;
 
   async publish(event: DomainEvent): Promise<void> {
-    // call every subscriber for event.name
+    await this.notifyObservers(event);
   }
 }
 
 export const eventBus = new EventBus();
 ```
 
-**The one rule that matters here:** a subscriber that throws must not break the
-thing that published the event. If writing a notification fails, the ride must
-still have been created. Wrap each subscriber call in a `try/catch` inside
-`publish` and log the failure. Getting this wrong means a failed notification
-rolls back somebody's ride.
+This maps directly to the pattern taught in class: `Subject` is the subject
+interface, `EventBus` is the concrete subject, `Observer` is the observer
+interface, and a `DomainEvent` is the changed state delivered to `update()`.
 
-## Step 3 — the subscriber
+**The one rule that matters here:** an observer that throws must not break the
+thing that published the event. If writing a notification fails, the ride must
+still have been created. Wrap each `observer.update(event)` call in its own
+`try/catch` inside `notifyObservers` and log the failure. Getting this wrong
+means a failed notification rolls back somebody's ride.
+
+## Step 3 - the concrete observers
 
 `backend/src/events/subscribers/notification.subscriber.ts`
 
-One function per event name, or one function that switches on `event.name`.
-Each one inserts a row per person in `audience`. Map events to the `kind` column
-like this:
+`NotificationObserver implements Observer`; its `update(event)` inserts a row
+per person in `audience`. `PushObserver implements Observer`; its `update(event)`
+uses the existing push transport. Map events to the `kind` column like this:
 
 | Event                | `notifications.kind` |
 | -------------------- | -------------------- |
@@ -127,8 +140,8 @@ like this:
 renders. The table is `migrations/26_notifications.sql` — read it, the comments
 explain every column.
 
-Register the subscriber once, at startup. `backend/src/app.ts` is the right
-place — **not** `server.ts`, which only binds a port.
+Register both observer instances at startup. `backend/src/app.ts` is the right
+place - **not** `server.ts`, which only binds a port.
 
 ## Step 4 — where to publish from
 
@@ -191,11 +204,10 @@ And directly in the database:
 psql "$DATABASE_URL" -c "SELECT kind, user_id, actor_user_id, created_at FROM notifications ORDER BY created_at DESC LIMIT 10;"
 ```
 
-**The test that proves it is Observer and not just a function call:** add a
-second subscriber that only does `console.log`, register it alongside the first,
-and confirm both run when one event is published — without changing any of the
-ten services. If you had to edit a service to add the second listener, it is not
-Observer yet.
+**The test that proves it is Observer and not just a function call:** register
+two observers, publish once, and confirm both receive `update(event)`. Then
+unregister one, publish again, and confirm only the remaining observer runs -
+without changing any of the ten services.
 
 ## Traps
 

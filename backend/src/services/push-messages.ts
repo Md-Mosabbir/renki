@@ -7,9 +7,11 @@ import type { PushPayload } from './push.service.js';
  * compiles and is testable before Enamul's Observer exists. When the bus lands,
  * the subscriber is four lines:
  *
- *     eventBus.subscribe(name, async (event) => {
- *       await sendToUsers(event.audience, messageFor(kindOf(event), actorName));
- *     });
+ *     class PushObserver implements Observer {
+ *       async update(event: DomainEvent) {
+ *         await sendToUsers(event.audience, messageFor(kindOf(event), actorName));
+ *       }
+ *     }
  *
  * The `kind` values are exactly `chk_notifications_kind` from migration 26, so
  * this mapping and the notification row always agree about what happened.

@@ -1,22 +1,34 @@
-import type { DomainEvent, DomainEventName } from './domain-event.js';
+import type { DomainEvent } from './domain-event.js';
 
 /**
- * The Observer.
+ * The concrete Subject in the Observer pattern.
  *
  * Ten services announce what happened. Two subscribers listen. Neither knows
  * about the other, which is the entire point: adding email later is one more
- * `subscribe()` call and zero edits to any service.
+ * `registerObserver()` call and zero edits to any service.
  */
 
-export type Subscriber = (event: DomainEvent) => Promise<void> | void;
+/** The interface implemented by every concrete observer. */
+export interface Observer {
+  update(event: DomainEvent): Promise<void> | void;
+}
 
-class EventBus {
-  private subscribers = new Map<DomainEventName, Subscriber[]>();
+/** The Subject interface taught by the classic Observer pattern. */
+export interface Subject {
+  registerObserver(observer: Observer): void;
+  unregisterObserver(observer: Observer): void;
+  notifyObservers(event: DomainEvent): Promise<void>;
+}
 
-  subscribe(name: DomainEventName, subscriber: Subscriber): void {
-    const existing = this.subscribers.get(name) ?? [];
-    existing.push(subscriber);
-    this.subscribers.set(name, existing);
+export class EventBus implements Subject {
+  private observers = new Set<Observer>();
+
+  registerObserver(observer: Observer): void {
+    this.observers.add(observer);
+  }
+
+  unregisterObserver(observer: Observer): void {
+    this.observers.delete(observer);
   }
 
   /**
@@ -32,22 +44,27 @@ class EventBus {
    * to gain, and it keeps the notification row written before the push that
    * refers to it goes out.
    */
-  async publish(event: DomainEvent): Promise<void> {
-    for (const subscriber of this.subscribers.get(event.name) ?? []) {
+  async notifyObservers(event: DomainEvent): Promise<void> {
+    for (const observer of this.observers) {
       try {
-        await subscriber(event);
+        await observer.update(event);
       } catch (err) {
         console.error(
-          `[events] subscriber failed for ${event.name}:`,
+          `[events] observer failed for ${event.name}:`,
           err instanceof Error ? err.message : err
         );
       }
     }
   }
 
-  /** Test seam: subscribers are registered once at startup and never removed. */
+  /** Renki's domain-facing operation delegates to the Subject behavior. */
+  async publish(event: DomainEvent): Promise<void> {
+    await this.notifyObservers(event);
+  }
+
+  /** Test seam: production observers are registered during app setup. */
   clear(): void {
-    this.subscribers.clear();
+    this.observers.clear();
   }
 }
 
