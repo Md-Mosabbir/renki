@@ -9,7 +9,6 @@ import type { AdminReport, ReportStatus, ReviewAction } from '@/lib/api';
 import { AppShell, Page } from '@/components/app-shell';
 import { SkeletonList } from '@/components/motion/skeleton';
 import { Button } from '@/components/ui/button';
-import { Wordmark } from '@/components/brand/wordmark';
 
 /**
  * The moderation queue.
@@ -182,10 +181,6 @@ export default function AdminReportsPage() {
   return (
     <AppShell>
       <Page>
-        <header className="mb-10 md:hidden">
-          <Wordmark />
-        </header>
-
         <div className="space-y-8">
           <div className="space-y-2">
             <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">

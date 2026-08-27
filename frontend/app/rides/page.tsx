@@ -13,7 +13,6 @@ import { useSession } from '@/lib/use-session';
 import { canRide, isChallenged, isSuspended } from '@/lib/trust';
 import { ChallengeBanner } from '@/components/verify/challenge-banner';
 import type { User } from '@/lib/api';
-import { Wordmark } from '@/components/brand/wordmark';
 
 /**
  * Dashboard.
@@ -42,10 +41,6 @@ export default function RidesPage() {
   return (
     <AppShell>
       <Page>
-        <header className="mb-10 flex items-start justify-between md:hidden">
-          <Wordmark />
-        </header>
-
         <div className="space-y-10 md:space-y-12">
           <section className="space-y-2">
             <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">

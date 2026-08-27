@@ -11,7 +11,6 @@ import { SkeletonList } from '@/components/motion/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wordmark } from '@/components/brand/wordmark';
 
 /**
  * Cases where a student has answered a challenge and a moderator has to decide.
@@ -88,10 +87,6 @@ export default function AdminChallengesPage() {
   return (
     <AppShell>
       <Page>
-        <header className="mb-10 md:hidden">
-          <Wordmark />
-        </header>
-
         <div className="space-y-8">
           <div className="space-y-2">
             <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">

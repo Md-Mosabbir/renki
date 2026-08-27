@@ -9,7 +9,6 @@ import { AppShell, Page } from '@/components/app-shell';
 import { SkeletonList } from '@/components/motion/skeleton';
 import { ReportPanel } from '@/components/reports/report-panel';
 import { Button } from '@/components/ui/button';
-import { Wordmark } from '@/components/brand/wordmark';
 
 /**
  * Rides that are over.
@@ -60,10 +59,6 @@ export default function HistoryPage() {
   return (
     <AppShell>
       <Page>
-        <header className="mb-10 md:hidden">
-          <Wordmark />
-        </header>
-
         <div className="space-y-8">
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">History</h1>

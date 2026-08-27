@@ -15,7 +15,6 @@ import type { User } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wordmark } from '@/components/brand/wordmark';
 import { NotificationSettings } from '@/components/pwa/notification-settings';
 import { MyReports } from '@/components/reports/my-reports';
 
@@ -70,10 +69,6 @@ export default function ProfilePage() {
   return (
     <AppShell>
       <Page>
-        <header className="mb-10 md:hidden">
-          <Wordmark />
-        </header>
-
         <div className="space-y-10 md:space-y-12">
           <section className="flex items-center gap-5">
             {/* Initials rather than a photo: profilePictureUrl is often null,
