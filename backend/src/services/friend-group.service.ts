@@ -9,6 +9,7 @@ import type {
 import type { Gender, TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
 import { eventBus } from '../events/index.js';
+import { FriendsGroupFactory } from './groups/index.js';
 import { BLOCKED_TRUST_STAGES } from './gender-challenge.service.js';
 
 /**
@@ -41,6 +42,15 @@ export interface FriendGroupInput {
   originLocationId: string;
   destinationLocationId: string;
   departureTime: string;
+  /**
+   * Where each member actually gets out, keyed by user id. Optional, and a
+   * missing entry means "the group's destination". Closes the gap the task
+   * doc calls out: before the factory, only a stranger match could record a
+   * per-member drop-off, even though the column and the read path
+   * (`ride_group_invites.dropoff_location_id`, `toPublicRideGroup`) have
+   * supported it since migration 23.
+   */
+  dropoffs?: Readonly<Record<string, string>>;
 }
 
 interface MemberEligibilityRow {
@@ -111,50 +121,21 @@ export async function createFriendGroup(
       throw new HttpError(400, 'A ride has to go somewhere else');
     }
 
-    const { rows: created } = await client.query<RideGroupRow>(
-      `INSERT INTO ride_groups
-         (origin_location_id, origin_kind, destination_location_id,
-          departure_time, status, gender,
-          formation, created_by_user_id, capacity)
-       VALUES ($1, $2, $3, $4, 'forming', $5, 'friends', $6, $7)
-       RETURNING ${GROUP_COLUMNS}`,
-      [
-        input.originLocationId,
-        origin.kind,
-        input.destinationLocationId,
-        departureTime.toISOString(),
+    const { group, members: createdMembers } = await new FriendsGroupFactory().create(
+      client,
+      {
+        originLocationId: input.originLocationId,
+        originKind: origin.kind,
+        destinationLocationId: input.destinationLocationId,
+        departureTime: departureTime.toISOString(),
         gender,
         creatorId,
-        members.length,
-      ]
+        friendIds,
+        dropoffs: input.dropoffs,
+      }
     );
 
-    const group = created[0];
-    if (!group) {
-      throw new HttpError(500, 'Failed to create the ride group');
-    }
-
-    // The creator is a member from the start and is recorded as having already
-    // said yes — they are the one who asked. Leaving them 'pending' would mean
-    // a group can never complete without its creator accepting their own
-    // invitation, which is a screen nobody would understand.
-    await client.query(
-      `INSERT INTO ride_group_invites (ride_group_id, user_id, direction, status, responded_at)
-       VALUES ($1, $2, 'requested', 'accepted', now())`,
-      [group.id, creatorId]
-    );
-
-    if (friendIds.length > 0) {
-      // One statement rather than a loop: unnest expands the array server-side,
-      // so N friends is still one round trip and one atomic write.
-      await client.query(
-        `INSERT INTO ride_group_invites (ride_group_id, user_id, direction, status)
-         SELECT $1, unnest($2::uuid[]), 'invited', 'pending'`,
-        [group.id, friendIds]
-      );
-    }
-
-    return { group, members: await loadGroupMembers(client, group.id) };
+    return { group, members: createdMembers };
   });
 
   // After the commit. Every invitee, never the organiser — they already know.
