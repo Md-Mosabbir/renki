@@ -2,7 +2,11 @@ import type { PoolClient } from 'pg';
 import { latLngToCell } from 'h3-js';
 
 import { query, transaction } from '../db/pool.js';
-import type { GroupMemberRow, RideGroupGender, RideGroupRow } from '../models/ride-group.model.js';
+import type {
+  GroupMemberRow,
+  RideGroupGender,
+  RideGroupRow,
+} from '../models/ride-group.model.js';
 import { HttpError } from '../utils/http-error.js';
 import { eventBus } from '../events/index.js';
 import { H3_RESOLUTION, selectStrategy } from './matching/index.js';

@@ -602,6 +602,57 @@ report again — a second incident is a real thing that happens.
 griefing vector: three friends coordinating can kill an account. A human
 decides, and the queue exists so a human can.
 
+**`moderation.service.ts` is the only writer of `trust_stage = 'suspended'`.**
+Until it landed, the queue had no teeth: every reason could be filed, read and
+marked resolved, and the only suspension anywhere in the product was at the end
+of a gender challenge. A moderator could suspend somebody for misdeclaring
+their gender and could not suspend them for harassment or for impersonation —
+the report the scan model exists to surface. The severity ordering was
+inverted. `resolveChallenge` now calls `applySuspension` rather than writing
+the columns itself, because `chk_users_suspension_paired` is an EQUIVALENCE and
+two writers of one fact is how they drift.
+
+**Suspending is addressed to a REPORT; reinstating is addressed to a user.**
+`POST /api/admin/reports/:id/suspend` derives the target from the report, so
+every suspension has a cause on file that the next moderator can read — a
+suspend endpoint taking a bare user id would not. Reinstating has no report to
+attach to: the one that caused the suspension was closed when it was imposed.
+
+**`trust_stage_before_suspension` is what makes it reversible**, and it had no
+reader for two migrations. Without it every moderator mistake is permanent,
+which is a stricter outcome than a block — and blocks can always be lifted.
+Restoring falls back to `'new'`, never `'verified'`: a pre-migration-29 row has
+no stored stage and guessing upwards hands somebody a standing they never
+earned.
+
+**A decision CLOSES the report it came from, in the same transaction.** Not
+tidiness. `uq_open_report_per_pair` is partial over `open`/`under_review`, so a
+report left open after the case is decided 409s that reporter out of ever
+filing about that person again — and the partial index exists precisely so a
+second incident can be reported.
+
+**A friends group checks `trust_stage`, and did not until now.** `loadMembers`
+had always SELECTed the column and nothing read it, so a suspended student was
+excluded from stranger matching in two places and could still be added to a
+friends group and ride the same evening. Checked at creation AND when an
+invitee accepts — a student can be suspended between the two, and accepting is
+what turns `forming` into `matched`. Declining is always allowed: a suspension
+must not trap somebody into a ride.
+
+**Known gap: a group already `matched` when somebody in it is suspended.** The
+ride can still be started. Cancelling the whole group would punish everyone
+else in the car, and removing one member breaks the every-pair-is-friends
+invariant that `capacity` was set against. It is a product decision, not a bug
+fix, and nothing in the code pretends otherwise.
+
+**The queue carries two counts: reports about the target, reports by the
+reporter.** Context, never a verdict, and still no threshold that does anything
+on its own. "A human decides" is only the better answer than a threshold if the
+human can see what a threshold would have seen — otherwise the fourth complaint
+about somebody looks exactly like the first, and so does a report from a student
+who has filed nine this month. Counts and not the reports themselves: a
+moderator working one case has no business reading the text of unrelated ones.
+
 **`requireAdmin` answers 404, not 403.** A 403 confirms `/api/admin/*` exists
 and that the caller is merely not allowed, which tells every signed-in student
 there is a moderation surface worth attacking. It also reads `is_admin` from the
@@ -650,6 +701,13 @@ declares gender, trust_stage 'new'  →  rides normally
 a photo, reporting someone would be a way to compel them to photograph
 themselves on demand — a harassment tool wearing a safety badge. The extra click
 is what makes a malicious report cost the target nothing.
+
+That gate lived in the BROWSER until recently — `report.reason ===
+'gender_mismatch'` decided whether the button rendered, while the endpoint took
+a bare `userId` and an optional `reportId` it never read. `issueChallenge` now
+requires the report, and checks it is about that exact person and carries that
+exact reason. The argument for gating the challenge cannot rest on a condition
+evaluated in a client.
 
 **A challenged account cannot ride, and that is why the gate matters.** A
 challenge nobody has to answer is ignorable, so the block has to be real; a real

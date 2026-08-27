@@ -6,6 +6,7 @@ import {
   patchChallenge,
   postChallenge,
 } from '../controllers/verification.controller.js';
+import { postReinstate, postSuspend } from '../controllers/moderation.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 
@@ -24,6 +25,17 @@ router.use(requireAuth, requireAdmin);
 // PATCH /api/admin/reports/:id                      body: { status }
 router.get('/reports', getAdminReports);
 router.patch('/reports/:id', patchAdminReport);
+
+// POST /api/admin/reports/:id/suspend   body: { reason? }
+// POST /api/admin/users/:id/reinstate
+//
+// The queue had no teeth until these landed: every reason could be filed, read
+// and marked resolved, and the only suspension in the codebase was the one at
+// the end of a gender challenge. Suspending is addressed to a REPORT so the
+// decision always has a cause on file; reinstating is addressed to a user,
+// because there is nothing left to attach it to.
+router.post('/reports/:id/suspend', postSuspend);
+router.post('/users/:id/reinstate', postReinstate);
 
 // GET   /api/admin/challenges        cases awaiting a decision, oldest first
 // POST  /api/admin/challenges        body: { userId, reportId? }  -> ask

@@ -143,9 +143,10 @@ export async function getChallengeQueue(_req: Request, res: Response): Promise<v
 export async function postChallenge(req: Request, res: Response): Promise<void> {
   const moderatorId = requireUserId(req);
   const userId = requireString(req.body, 'userId');
-
-  const rawReport = (req.body as Record<string, unknown> | null)?.reportId;
-  const reportId = typeof rawReport === 'string' && rawReport !== '' ? rawReport : null;
+  // Required, not optional. The service checks that it is a gender_mismatch
+  // report about this exact person; a challenge with no cause on file is one
+  // nobody can review afterwards.
+  const reportId = requireString(req.body, 'reportId');
 
   const challenge = await issueChallenge(moderatorId, userId, reportId);
   res.status(201).json({ data: { challenge } });

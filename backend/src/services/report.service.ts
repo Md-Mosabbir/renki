@@ -147,13 +147,31 @@ export async function listReportsForAdmin(
   const skip = Math.max(0, Math.trunc(offset));
 
   const { rows } = await query<
-    ReportRow & { reported_name: string; reporter_name: string }
+    ReportRow & {
+      reported_name: string;
+      reporter_name: string;
+      reports_about_reported: string;
+      reports_by_reporter: string;
+    }
   >(
+    // The two counts are correlated subqueries rather than a second round
+    // trip. `reports` is indexed on both columns and a page is 25 rows, so
+    // this is cheap — and a separate query would have to be kept in step with
+    // this one's pagination by hand.
+    //
+    // ::text on both because pg returns bigint as a string anyway; saying so
+    // here means the Number() below is deliberate rather than a surprise.
     `SELECT ${REPORT_COLUMNS.split(',')
       .map((column) => `r.${column.trim()}`)
       .join(', ')},
             reported.name AS reported_name,
-            reporter.name AS reporter_name
+            reporter.name AS reporter_name,
+            (SELECT count(*) FROM reports x
+              WHERE x.reported_user_id = r.reported_user_id)::text
+              AS reports_about_reported,
+            (SELECT count(*) FROM reports x
+              WHERE x.reporter_id = r.reporter_id)::text
+              AS reports_by_reporter
        FROM reports r
        JOIN users reported ON reported.id = r.reported_user_id
        JOIN users reporter ON reporter.id = r.reporter_id
@@ -173,6 +191,8 @@ export async function listReportsForAdmin(
       reporterName: row.reporter_name,
       reviewedAt: row.reviewed_at?.toISOString() ?? null,
       reviewedByUserId: row.reviewed_by_user_id,
+      reportsAboutReported: Number(row.reports_about_reported),
+      reportsByReporter: Number(row.reports_by_reporter),
     })),
     hasMore,
   };
@@ -198,7 +218,12 @@ export async function reviewReport(
   action: ReviewAction
 ): Promise<AdminReport> {
   const { rows } = await query<
-    ReportRow & { reported_name: string; reporter_name: string }
+    ReportRow & {
+      reported_name: string;
+      reporter_name: string;
+      reports_about_reported: string;
+      reports_by_reporter: string;
+    }
   >(
     `UPDATE reports
         SET status              = $3,
@@ -207,7 +232,13 @@ export async function reviewReport(
       WHERE id = $1
       RETURNING ${REPORT_COLUMNS},
         (SELECT name FROM users WHERE id = reports.reported_user_id) AS reported_name,
-        (SELECT name FROM users WHERE id = reports.reporter_id)      AS reporter_name`,
+        (SELECT name FROM users WHERE id = reports.reporter_id)      AS reporter_name,
+        (SELECT count(*) FROM reports x
+          WHERE x.reported_user_id = reports.reported_user_id)::text
+          AS reports_about_reported,
+        (SELECT count(*) FROM reports x
+          WHERE x.reporter_id = reports.reporter_id)::text
+          AS reports_by_reporter`,
     [reportId, adminId, action]
   );
 
@@ -222,6 +253,8 @@ export async function reviewReport(
     reporterName: updated.reporter_name,
     reviewedAt: updated.reviewed_at?.toISOString() ?? null,
     reviewedByUserId: updated.reviewed_by_user_id,
+    reportsAboutReported: Number(updated.reports_about_reported),
+    reportsByReporter: Number(updated.reports_by_reporter),
   };
 }
 

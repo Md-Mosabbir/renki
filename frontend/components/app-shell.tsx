@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Car, History, Users, UsersRound, User as UserIcon } from 'lucide-react';
 
 import { Wordmark } from '@/components/brand/wordmark';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 /**
  * The signed-in frame.
@@ -39,7 +40,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ---- Desktop: fixed sidebar ---- */}
       <aside className="border-border hidden shrink-0 border-r md:flex md:w-56 md:flex-col lg:w-64">
         <div className="sticky top-0 flex h-screen flex-col p-6">
-          <Wordmark className="mb-10" />
+          <div className="mb-10 flex items-center justify-between">
+            <Wordmark />
+            <NotificationBell />
+          </div>
 
           <nav aria-label="Primary">
             <ul className="space-y-1">
@@ -68,7 +72,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ---- Content ---- */}
-      <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">
+        {/*
+          The bell is a top bar on mobile rather than a sixth item in the
+          bottom nav. Five slots already divide a 375px screen into 75px
+          columns; a sixth drops each below the 44px tap-target floor the rest
+          of this file is careful about.
+        */}
+        <div className="border-border flex items-center justify-between border-b px-4 py-2 md:hidden">
+          <Wordmark />
+          <NotificationBell />
+        </div>
+        {children}
+      </div>
 
       {/* ---- Mobile: bottom bar ---- */}
       <nav

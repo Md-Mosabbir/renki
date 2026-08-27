@@ -2,7 +2,11 @@ import type { PoolClient } from 'pg';
 
 import type { GroupMemberRow, RideGroupRow } from '../../models/ride-group.model.js';
 import { HttpError } from '../../utils/http-error.js';
-import type { CreatedRideGroup, MemberSpec, RideGroupHeader } from './ride-group.types.js';
+import type {
+  CreatedRideGroup,
+  MemberSpec,
+  RideGroupHeader,
+} from './ride-group.types.js';
 
 /**
  * ABSTRACT CREATOR.

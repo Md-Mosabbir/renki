@@ -14,6 +14,25 @@ import { createRideRequest, dealDeck } from './ride-request.service.js';
 const DHANMONDI_27 = { latitude: 23.7461, longitude: 90.3742 };
 const DHANMONDI_32 = { latitude: 23.7539, longitude: 90.3776 };
 
+/**
+ * A gender_mismatch report about `target`, which `issueChallenge` now requires.
+ *
+ * Written straight to the table rather than through `createReport`, which
+ * would first need the two of them to have shared a ride or a friendship.
+ * That bound is real and tested in report.int.test.ts; here it is scaffolding.
+ */
+async function makeGenderReport(reporterId: string, targetId: string): Promise<string> {
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO reports (reporter_id, reported_user_id, reason, status)
+     VALUES ($1, $2, 'gender_mismatch', 'open')
+     RETURNING id`,
+    [reporterId, targetId]
+  );
+  const id = rows[0]?.id;
+  if (!id) throw new Error('failed to seed a report');
+  return id;
+}
+
 describe('the gender challenge', () => {
   beforeEach(async () => {
     await resetDb();
@@ -33,7 +52,7 @@ describe('the gender challenge', () => {
     const mod = await makeUser({ isAdmin: true });
     const target = await makeUser();
 
-    await issueChallenge(mod.id, target.id, null);
+    await issueChallenge(mod.id, target.id, await makeGenderReport(mod.id, target.id));
     const { view } = await submitChallengePhoto(target.id, 'challenges/x/1.jpg');
     expect(view.status).toBe('under_review');
 
@@ -73,7 +92,7 @@ describe('the gender challenge', () => {
     const mod = await makeUser({ isAdmin: true });
     const target = await makeUser();
 
-    await issueChallenge(mod.id, target.id, null);
+    await issueChallenge(mod.id, target.id, await makeGenderReport(mod.id, target.id));
     const { view } = await submitChallengePhoto(target.id, 'challenges/y/1.jpg');
     await resolveChallenge(mod.id, view.id, false);
 
@@ -97,8 +116,8 @@ describe('the gender challenge', () => {
     const second = await makeUser({ name: 'Second Challenged' });
 
     // `first` is challenged first, so its ROW is older...
-    await issueChallenge(mod.id, first.id, null);
-    await issueChallenge(mod.id, second.id, null);
+    await issueChallenge(mod.id, first.id, await makeGenderReport(mod.id, first.id));
+    await issueChallenge(mod.id, second.id, await makeGenderReport(mod.id, second.id));
 
     // ...but `second` submits a photo first, so it should be reviewed first.
     await submitChallengePhoto(second.id, 'challenges/second/1.jpg');
@@ -113,8 +132,12 @@ describe('the gender challenge', () => {
     const waiting = await makeUser();
     const noPhotoYet = await makeUser();
 
-    await issueChallenge(mod.id, waiting.id, null);
-    await issueChallenge(mod.id, noPhotoYet.id, null);
+    await issueChallenge(mod.id, waiting.id, await makeGenderReport(mod.id, waiting.id));
+    await issueChallenge(
+      mod.id,
+      noPhotoYet.id,
+      await makeGenderReport(mod.id, noPhotoYet.id)
+    );
     await submitChallengePhoto(waiting.id, 'challenges/w/1.jpg');
 
     const queue = await listChallengeQueue();
@@ -124,7 +147,49 @@ describe('the gender challenge', () => {
   it('refuses to challenge an admin, and says nothing about why', async () => {
     const mod = await makeUser({ isAdmin: true });
     const other = await makeUser({ isAdmin: true });
-    await expect(issueChallenge(mod.id, other.id, null)).rejects.toMatchObject({
+    const report = await makeGenderReport(mod.id, other.id);
+    await expect(issueChallenge(mod.id, other.id, report)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  /**
+   * The gate used to be `report.reason === 'gender_mismatch'` in the admin
+   * page's JSX, while the endpoint accepted a bare userId and no report at all.
+   * The whole argument for gating the challenge is that a report must never
+   * compel somebody to photograph themselves, and that argument cannot rest on
+   * a condition evaluated in the browser.
+   */
+  it('refuses to challenge off a report that is not about gender', async () => {
+    const mod = await makeUser({ isAdmin: true });
+    const target = await makeUser();
+
+    const { rows } = await query<{ id: string }>(
+      `INSERT INTO reports (reporter_id, reported_user_id, reason, status)
+       VALUES ($1, $2, 'no_show', 'open') RETURNING id`,
+      [mod.id, target.id]
+    );
+
+    await expect(
+      issueChallenge(mod.id, target.id, rows[0]?.id ?? '')
+    ).rejects.toMatchObject({ status: 409 });
+
+    const { rows: after } = await query<{ trust_stage: string }>(
+      `SELECT trust_stage FROM users WHERE id = $1`,
+      [target.id]
+    );
+    expect(after[0]?.trust_stage).toBe('new');
+  });
+
+  /** A report about somebody else is not a licence to challenge this person. */
+  it('refuses a report that is about a different person', async () => {
+    const mod = await makeUser({ isAdmin: true });
+    const target = await makeUser();
+    const somebodyElse = await makeUser();
+
+    const report = await makeGenderReport(mod.id, somebodyElse.id);
+
+    await expect(issueChallenge(mod.id, target.id, report)).rejects.toMatchObject({
       status: 404,
     });
   });
@@ -135,7 +200,7 @@ describe('the gender challenge', () => {
       const target = await makeUser();
       const campus = await makeCampus();
 
-      await issueChallenge(mod.id, target.id, null);
+      await issueChallenge(mod.id, target.id, await makeGenderReport(mod.id, target.id));
 
       await expect(
         createRideRequest(target.id, { ...DHANMONDI_27 }, soon(45), campus)
@@ -161,7 +226,7 @@ describe('the gender challenge', () => {
       const campus = await makeCampus();
 
       await createRideRequest(target.id, { ...DHANMONDI_32 }, soon(45), campus);
-      await issueChallenge(mod.id, target.id, null);
+      await issueChallenge(mod.id, target.id, await makeGenderReport(mod.id, target.id));
 
       const { rows } = await query<{ status: string }>(
         `SELECT status FROM ride_requests WHERE user_id = $1`,

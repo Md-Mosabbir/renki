@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, ShieldCheck, UserRoundSearch } from 'lucide-react';
+import { ArrowRight, Ban, ShieldCheck, UserRoundSearch } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, ApiError, REPORT_REASON_LABELS, REPORT_STATUS_LABELS } from '@/lib/api';
@@ -115,6 +115,57 @@ export default function AdminReportsPage() {
     [load, filter]
   );
 
+  /**
+   * The queue's one irreversible-feeling action, and the reason `reinstate`
+   * sits next to it: it is not actually irreversible, and a moderator has to
+   * be able to see that before they hesitate to use it at all.
+   *
+   * No confirmation dialog, a plain `confirm` instead — this page is for one
+   * person and a modal would be more code than the decision deserves.
+   */
+  const suspend = useCallback(
+    (report: AdminReport) => {
+      const reason = window.prompt(
+        `Suspend ${report.reportedUserName}? They will not be able to ride or add friends. Say why, for the record:`
+      );
+      if (reason === null) return;
+
+      setBusyId(report.id);
+      api
+        .suspendReported(report.id, reason)
+        .then(() => {
+          toast.success(`${report.reportedUserName} suspended`);
+          load(filter);
+        })
+        .catch((err: unknown) => {
+          toast.error(err instanceof ApiError ? err.message : 'Could not suspend them');
+        })
+        .finally(() => {
+          setBusyId(null);
+        });
+    },
+    [load, filter]
+  );
+
+  const reinstate = useCallback(
+    (report: AdminReport) => {
+      setBusyId(report.id);
+      api
+        .reinstateUser(report.reportedUserId)
+        .then(() => {
+          toast.success(`${report.reportedUserName} can ride again`);
+          load(filter);
+        })
+        .catch((err: unknown) => {
+          toast.error(err instanceof ApiError ? err.message : 'Could not undo it');
+        })
+        .finally(() => {
+          setBusyId(null);
+        });
+    },
+    [load, filter]
+  );
+
   if (denied) {
     return (
       <AppShell>
@@ -185,6 +236,8 @@ export default function AdminReportsPage() {
                     busy={busyId === report.id}
                     onReview={review}
                     onChallenge={challenge}
+                    onSuspend={suspend}
+                    onReinstate={reinstate}
                   />
                 </li>
               ))}
@@ -201,14 +254,26 @@ function ReportRow({
   busy,
   onReview,
   onChallenge,
+  onSuspend,
+  onReinstate,
 }: {
   report: AdminReport;
   busy: boolean;
   onReview: (id: string, status: ReviewAction) => void;
   onChallenge: (report: AdminReport) => void;
+  onSuspend: (report: AdminReport) => void;
+  onReinstate: (report: AdminReport) => void;
 }) {
   const closed = report.status === 'resolved' || report.status === 'dismissed';
   const canChallenge = report.reason === 'gender_mismatch' && !closed;
+  // The gate is also enforced server-side now. This only decides whether the
+  // button renders; issueChallenge refuses a report of any other reason.
+
+  // Worth a second look, not a verdict. Deliberately not a threshold that does
+  // anything on its own — the whole argument against "three reports and you are
+  // out" is that three coordinating friends could kill an account.
+  const repeatTarget = report.reportsAboutReported > 1;
+  const frequentReporter = report.reportsByReporter > 2;
 
   return (
     <article className={`space-y-3 py-5 ${closed ? 'opacity-60' : ''}`}>
@@ -238,6 +303,25 @@ function ReportRow({
       {report.description !== null && (
         <p className="border-border border-l-2 pl-3 text-sm leading-relaxed">
           {report.description}
+        </p>
+      )}
+
+      {/* Context, never a verdict. A queue that shows one report at a time
+          makes the fourth complaint about somebody look exactly like the
+          first — and makes a student who has filed nine this month look
+          exactly like one who has filed their first. */}
+      {(repeatTarget || frequentReporter) && (
+        <p className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {repeatTarget && (
+            <span>
+              {report.reportsAboutReported} reports about {report.reportedUserName}
+            </span>
+          )}
+          {frequentReporter && (
+            <span>
+              {report.reporterName} has filed {report.reportsByReporter}
+            </span>
+          )}
         </p>
       )}
 
@@ -316,6 +400,42 @@ function ReportRow({
           </Button>
         )}
       </div>
+
+      {/* The queue had no teeth at all until this: every reason could be
+          filed, read and marked resolved, and the only suspension anywhere in
+          the product was the one at the end of a gender challenge. A moderator
+          could suspend somebody for misdeclaring their gender and could not
+          suspend them for harassment.
+
+          Still nothing automatic. This is a button a person presses, and
+          pressing it resolves the report in the same breath. */}
+      {!closed && (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              onSuspend(report);
+            }}
+            className="text-destructive hover:text-destructive rounded-none"
+          >
+            <Ban className="size-4" />
+            Suspend {report.reportedUserName.split(' ')[0]}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              onReinstate(report);
+            }}
+            className="text-muted-foreground rounded-none"
+          >
+            Undo a suspension
+          </Button>
+        </div>
+      )}
     </article>
   );
 }
