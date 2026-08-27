@@ -120,23 +120,12 @@ export class ThrottledHandlerProxy {
  * The user id when there is one, so a student is limited as a person rather
  * than as an address — otherwise everyone behind one campus NAT shares a
  * bucket. `req.ip` is the fallback for the endpoints that run before any token
- * exists, and it is only meaningful because `app.ts` sets `trust proxy`: on
- * Render without it, `req.ip` is the load balancer and the whole university is
- * one caller.
+ * exists, and it is only meaningful because `app.ts` sets `trust proxy` to the
+ * MEASURED hop count. At the wrong value `req.ip` is one of Render's own
+ * routers rather than the caller — see the comment on that line, which records
+ * what that broke and how it was measured.
  */
 function identify(req: Request): string {
-  // TEMPORARY: measuring Render's proxy hop count. `trust proxy: 1` resolved
-  // req.ip to Render's internal router (10.28.x / 10.29.x, alternating), which
-  // rotated the key and defeated the limiter. Remove once the value is pinned.
-  console.log(
-    '[throttle-probe]',
-    JSON.stringify({
-      ip: req.ip,
-      ips: req.ips,
-      xff: req.headers['x-forwarded-for'],
-      socket: req.socket.remoteAddress,
-    })
-  );
   return req.user?.id ?? `ip:${req.ip ?? 'unknown'}`;
 }
 
