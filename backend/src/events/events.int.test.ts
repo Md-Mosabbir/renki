@@ -58,6 +58,11 @@ describe('events reach the notification table', () => {
     await swipe(a.id, mine.id, theirs.id, true);
     expect(await kindsFor(b.id)).toEqual(['swipe_received']);
 
+    // Repeating an idempotent yes is still waiting, but it is not a second
+    // thing that happened to the other rider.
+    await swipe(a.id, mine.id, theirs.id, true);
+    expect(await kindsFor(b.id)).toEqual(['swipe_received']);
+
     await swipe(b.id, theirs.id, mine.id, true);
     // a learns they matched; b was the one who completed it and is looking at
     // the screen that already says so.
