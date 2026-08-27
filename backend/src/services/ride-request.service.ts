@@ -438,6 +438,8 @@ export async function swipe(
     throw new HttpError(400, 'You cannot match with your own request');
   }
 
+  let shouldPublishSwipeReceived = false;
+
   const result = await transaction(async (client) => {
     // Same reason as dealDeck: a card can sit on screen longer than the search
     // it was dealt from lives.
@@ -471,6 +473,22 @@ export async function swipe(
     const isA = requestId === firstId;
     const myColumn = isA ? 'response_a' : 'response_b';
     const answer = accept ? 'accepted' : 'declined';
+
+    // Remember the answer before the upsert. Repeating an idempotent yes must
+    // not buzz the other rider again. Both request rows are already locked in
+    // canonical order above, so another swipe for this pair cannot change the
+    // proposal between this read and the write below.
+    const { rows: existingProposals } = await client.query<{
+      response_a: string;
+      response_b: string;
+    }>(
+      `SELECT response_a, response_b
+         FROM ride_match_proposals
+        WHERE request_a_id = $1 AND request_b_id = $2`,
+      [firstId, secondId]
+    );
+    const previous = existingProposals[0];
+    const previousAnswer = isA ? previous?.response_a : previous?.response_b;
 
     // `myColumn` is interpolated, which every value in this codebase must never
     // be. It is safe here and only here because it is a COLUMN NAME chosen by
@@ -509,6 +527,7 @@ export async function swipe(
           WHERE id IN ($1, $2) AND status = 'pending'`,
         [firstId, secondId]
       );
+      shouldPublishSwipeReceived = previousAnswer !== 'accepted';
       return { outcome: 'waiting' as const, otherUserId: theirs.user_id };
     }
 
@@ -519,7 +538,7 @@ export async function swipe(
   // After the commit, and only for the two outcomes that mean something to the
   // OTHER person. A decline tells them nothing — deliberately: being notified
   // that somebody looked at your card and said no is a feature nobody asked for.
-  if (result.outcome === 'waiting') {
+  if (result.outcome === 'waiting' && shouldPublishSwipeReceived) {
     await eventBus.publish({
       name: 'ride.swipeReceived',
       actorId: userId,
