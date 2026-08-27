@@ -2,11 +2,12 @@ import type { PoolClient } from 'pg';
 import { latLngToCell } from 'h3-js';
 
 import { query, transaction } from '../db/pool.js';
-import type { GroupMemberRow, RideGroupRow } from '../models/ride-group.model.js';
+import type { GroupMemberRow, RideGroupGender, RideGroupRow } from '../models/ride-group.model.js';
 import { HttpError } from '../utils/http-error.js';
 import { eventBus } from '../events/index.js';
 import { H3_RESOLUTION, selectStrategy } from './matching/index.js';
 import type { MatchCandidate } from './matching/index.js';
+import { StrangerMatchFactory } from './groups/index.js';
 
 /**
  * SERVICE — stranger ride requests and the matching that pairs them.
@@ -584,7 +585,8 @@ async function createMatchedGroup(
   // A ride carries one gender because `ride_groups.gender` is one NOT NULL
   // column. Two riders who share one give it their own; two who do not are
   // 'mixed', which is a value the column only accepts as of migration 27.
-  const gender = a.gender === b.gender ? a.gender : 'mixed';
+  const gender: RideGroupGender =
+    a.gender === b.gender ? (a.gender as RideGroupGender) : 'mixed';
 
   // Whoever has to leave first sets the ride — the alternative makes them late.
   // The same person's destination becomes the group's headline destination, so
@@ -597,47 +599,28 @@ async function createMatchedGroup(
   const leader = mine.departure_time <= theirs.departure_time ? mine : theirs;
   const departure = leader.departure_time;
 
-  const { rows: created } = await client.query<RideGroupRow>(
-    `INSERT INTO ride_groups
-       (origin_location_id, origin_kind, destination_location_id, departure_time,
-        status, gender, formation, created_by_user_id, capacity)
-     SELECT $1, orig.kind, $2, $3, 'matched', $4, 'matched', NULL, 2
-       FROM locations orig WHERE orig.id = $1
-     RETURNING id, origin_location_id, origin_kind, destination_location_id,
-               departure_time, status, created_at, gender, formation,
-               created_by_user_id, capacity, started_at, completed_at, cancelled_at`,
-    [
-      mine.origin_location_id,
-      mine.destination_location_id,
-      departure.toISOString(),
-      gender,
-    ]
+  const { rows: originRows } = await client.query<{ kind: string }>(
+    `SELECT kind FROM locations WHERE id = $1`,
+    [mine.origin_location_id]
   );
-
-  const group = created[0];
-  if (!group) {
-    throw new HttpError(500, 'Failed to create the ride group');
+  const originKind = originRows[0]?.kind;
+  if (!originKind) {
+    throw new HttpError(404, 'That origin no longer exists');
   }
 
-  // Both are already in — a match IS the acceptance. Nobody is invited to a
-  // stranger ride; they swiped their way into it.
-  //
-  // Each row carries that rider's OWN destination as their drop-off. Written
-  // unconditionally rather than only when the two differ: toPublicRideGroup
-  // collapses a drop-off equal to the group's back to null, so storing the
-  // real answer here keeps the decision in one place and the row honest about
-  // what the person actually asked for.
-  await client.query(
-    `INSERT INTO ride_group_invites
-       (ride_group_id, user_id, direction, status, responded_at, dropoff_location_id)
-     SELECT $1, member.user_id, 'requested', 'accepted', now(), member.dropoff
-       FROM unnest($2::uuid[], $3::uuid[]) AS member(user_id, dropoff)`,
-    [
-      group.id,
-      [mine.user_id, theirs.user_id],
-      [mine.destination_location_id, theirs.destination_location_id],
-    ]
-  );
+  const { group, members } = await new StrangerMatchFactory().create(client, {
+    originLocationId: mine.origin_location_id,
+    originKind,
+    destinationLocationId: mine.destination_location_id,
+    departureTime: departure.toISOString(),
+    gender,
+    riderAId: mine.user_id,
+    riderBId: theirs.user_id,
+    dropoffs: {
+      [mine.user_id]: mine.destination_location_id,
+      [theirs.user_id]: theirs.destination_location_id,
+    },
+  });
 
   await client.query(
     `UPDATE ride_requests SET status = 'matched', ride_group_id = $1
@@ -655,18 +638,6 @@ async function createMatchedGroup(
         AND NOT (request_a_id = LEAST($1::uuid, $2::uuid)
                  AND request_b_id = GREATEST($1::uuid, $2::uuid))`,
     [mine.id, theirs.id]
-  );
-
-  const { rows: members } = await client.query<GroupMemberRow>(
-    `SELECT i.user_id, u.name, u.profile_picture_url,
-            i.status AS invite_status, i.direction, i.responded_at,
-            i.dropoff_location_id, drop.address AS dropoff_address
-       FROM ride_group_invites i
-       LEFT JOIN locations drop ON drop.id = i.dropoff_location_id
-       JOIN users u ON u.id = i.user_id
-      WHERE i.ride_group_id = $1
-      ORDER BY i.created_at`,
-    [group.id]
   );
 
   return { group, members };
