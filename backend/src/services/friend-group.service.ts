@@ -9,6 +9,7 @@ import type {
 import type { Gender, TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
 import { eventBus } from '../events/index.js';
+import { BLOCKED_TRUST_STAGES } from './gender-challenge.service.js';
 
 /**
  * SERVICE — friends-formed ride groups.
@@ -93,6 +94,7 @@ export async function createFriendGroup(
       throw new HttpError(401, 'Account no longer exists');
     }
 
+    assertEveryoneMayRide(people);
     const gender = resolveGroupGender(creator, people);
     await assertEveryPairIsFriends(client, members, people);
 
@@ -210,6 +212,25 @@ export async function respondToGroupInvite(
     }
     if (invite.status !== 'pending') {
       throw new HttpError(409, `You have already ${invite.status} this invitation`);
+    }
+
+    // Checked on the way IN as well as at creation. A student can be challenged
+    // or suspended between being invited and answering, and accepting is the
+    // act that turns a forming group into a matched one — the last moment
+    // before the ride is real.
+    //
+    // Only when accepting. Declining is always allowed: refusing to ride is
+    // not something a suspension should be able to trap somebody out of, and
+    // the group is cancelled either way.
+    if (accept) {
+      const { rows: stages } = await client.query<{ trust_stage: TrustStage }>(
+        `SELECT trust_stage FROM users WHERE id = $1`,
+        [userId]
+      );
+      const stage = stages[0]?.trust_stage;
+      if (stage && BLOCKED_TRUST_STAGES.includes(stage)) {
+        throw new HttpError(403, 'This account cannot join rides right now');
+      }
     }
 
     await client.query(
@@ -335,6 +356,32 @@ async function loadMembers(
  * who has not answered makes the group 'mixed' rather than propagating a value
  * the INSERT would be rejected for.
  */
+/**
+ * Nobody in the group is challenged or suspended.
+ *
+ * This was the hole that made a suspension decorative. `loadMembers` has always
+ * SELECTed `trust_stage` into `MemberEligibilityRow` — somebody meant to check
+ * it — and nothing in this file ever read the column. Stranger matching
+ * excludes both stages in two places, so a suspended student could not be
+ * matched with anyone and could still be added to a friends group and ride the
+ * same evening.
+ *
+ * A denylist here rather than the RIDEABLE_TRUST_STAGES allowlist, for the
+ * reason `BLOCKED_TRUST_STAGES` exists: an allowlist admits ONE caller, and
+ * this is filtering a set of other people's rows, the same job
+ * `candidate-query.ts` does.
+ *
+ * Names the person. "Somebody in this group cannot ride" is not an error an
+ * organiser can act on, and every other check in this file names who failed it.
+ */
+function assertEveryoneMayRide(people: Map<string, MemberEligibilityRow>): void {
+  for (const person of people.values()) {
+    if (BLOCKED_TRUST_STAGES.includes(person.trust_stage)) {
+      throw new HttpError(403, `${person.name} cannot join a ride right now`);
+    }
+  }
+}
+
 function resolveGroupGender(
   creator: MemberEligibilityRow,
   people: Map<string, MemberEligibilityRow>

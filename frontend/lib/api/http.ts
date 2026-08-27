@@ -530,7 +530,7 @@ export const reportsApi = {
    * Deliberately separate from reading the report that prompted it: a report
    * alone must never compel somebody to photograph themselves.
    */
-  async issueChallenge(userId: string, reportId?: string): Promise<Challenge> {
+  async issueChallenge(userId: string, reportId: string): Promise<Challenge> {
     const { challenge } = await request<{ challenge: Challenge }>('/admin/challenges', {
       auth: true,
       method: 'POST',
@@ -545,6 +545,29 @@ export const reportsApi = {
       auth: true,
       method: 'PATCH',
       body: JSON.stringify({ cleared, note }),
+    });
+  },
+
+  /**
+   * Moderator only. Suspend the subject of a report.
+   *
+   * Addressed to the REPORT, not to a user id, so every suspension has a cause
+   * on file that the next moderator can read. The report is closed by the same
+   * transaction.
+   */
+  async suspendReported(reportId: string, reason?: string): Promise<void> {
+    await request<unknown>(`/admin/reports/${reportId}/suspend`, {
+      auth: true,
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /** Moderator only. Undo a suspension, restoring the stage held before it. */
+  async reinstateUser(userId: string): Promise<void> {
+    await request<unknown>(`/admin/users/${userId}/reinstate`, {
+      auth: true,
+      method: 'POST',
     });
   },
 

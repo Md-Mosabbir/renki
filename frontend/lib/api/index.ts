@@ -115,6 +115,10 @@ export const api = {
   challengeQueue: reportsApi.challengeQueue,
   /** POST /api/admin/challenges — ask a student to answer an allegation. */
   issueChallenge: reportsApi.issueChallenge,
+  /** POST /api/admin/reports/:id/suspend — the queue's only real consequence. */
+  suspendReported: reportsApi.suspendReported,
+  /** POST /api/admin/users/:id/reinstate — undo one. */
+  reinstateUser: reportsApi.reinstateUser,
   /** PATCH /api/admin/challenges/:id — rule; the photo is destroyed either way. */
   resolveChallenge: reportsApi.resolveChallenge,
   /** GET /api/admin/reports — 404s for non-moderators, by design. */

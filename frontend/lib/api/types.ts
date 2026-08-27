@@ -481,12 +481,26 @@ export interface Report {
   createdAt: string;
 }
 
-/** A report as a moderator sees it: both parties named, plus review state. */
+/**
+ * A report as a moderator sees it: both parties named, plus review state.
+ *
+ * The two counts are the context the decision needs. There is deliberately no
+ * automatic threshold — "three reports and you are out" is a griefing vector —
+ * and "a human decides" is only the better answer if the human can see what a
+ * threshold would have seen.
+ *
+ * Mirrors AdminReport in backend/src/models/report.model.ts field for field.
+ * Nothing checks that by machine; keep them in step by hand.
+ */
 export interface AdminReport extends Report {
   reporterId: string;
   reporterName: string;
   reviewedAt: string | null;
   reviewedByUserId: string | null;
+  /** Every report ever filed about the reported person, this one included. */
+  reportsAboutReported: number;
+  /** Every report the REPORTER has filed. High numbers are the griefing shape. */
+  reportsByReporter: number;
 }
 
 export interface ReportInput {

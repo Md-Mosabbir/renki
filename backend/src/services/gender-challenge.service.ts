@@ -1,8 +1,12 @@
-import type { PoolClient } from 'pg';
-
 import { query, transaction } from '../db/pool.js';
 import type { TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
+import {
+  applySuspension,
+  cancelOpenRequests,
+  closeReport,
+  lockModeratableUser,
+} from './moderation.service.js';
 
 /**
  * SERVICE — the gender challenge.
@@ -133,14 +137,38 @@ export async function getChallengeStatus(userId: string): Promise<ChallengeView 
 export async function issueChallenge(
   moderatorId: string,
   targetUserId: string,
-  reportId: string | null
+  reportId: string
 ): Promise<ChallengeView> {
   return transaction(async (client) => {
-    const target = await lockUser(client, targetUserId);
+    // The report is REQUIRED, and it has to be the right report about the right
+    // person. This check used to exist only in the browser —
+    // `report.reason === 'gender_mismatch'` decided whether the button
+    // rendered — while the endpoint accepted a bare userId with no reportId at
+    // all. The entire argument for gating the challenge is that a report must
+    // never compel somebody to photograph themselves; that argument cannot
+    // rest on a condition evaluated in the client.
+    //
+    // 'gender_mismatch' specifically, not any report. Every other reason is
+    // about what somebody DID, and none of them is answerable with a
+    // photograph — being asked for one over a no_show is the harassment this
+    // flow is shaped to prevent.
+    const { rows: reports } = await client.query<{
+      reason: string;
+      reported_user_id: string;
+    }>(`SELECT reason, reported_user_id FROM reports WHERE id = $1`, [reportId]);
 
-    if (target.is_admin || target.id === moderatorId) {
-      throw new HttpError(404, 'No such account');
+    const report = reports[0];
+    if (!report || report.reported_user_id !== targetUserId) {
+      throw new HttpError(404, 'Report not found');
     }
+    if (report.reason !== 'gender_mismatch') {
+      throw new HttpError(409, 'Only a gender_mismatch report can lead to a challenge');
+    }
+
+    // The admin/self guard moved INTO this call, so issuing a challenge and
+    // suspending an account cannot disagree about who is untouchable.
+    const target = await lockModeratableUser(client, moderatorId, targetUserId);
+
     if (target.trust_stage === 'suspended') {
       throw new HttpError(409, 'That account is already suspended');
     }
@@ -336,6 +364,7 @@ export async function resolveChallenge(
     const { rows } = await client.query<{
       user_id: string;
       selfie_object_key: string | null;
+      report_id: string | null;
     }>(
       // $2 is cast explicitly because it is used BOTH as a value assigned to a
       // varchar column and inside a comparison. Without the cast Postgres
@@ -356,7 +385,8 @@ export async function resolveChallenge(
         -- Same snapshot trick as submitChallengePhoto: this returns the key as
         -- it was before the NULL above, which is the key the caller has to go
         -- and delete from the bucket once this commits.
-        RETURNING user_id, (SELECT selfie_object_key FROM gender_verifications
+        RETURNING user_id, report_id,
+                  (SELECT selfie_object_key FROM gender_verifications
                              WHERE id = $1) AS selfie_object_key`,
       [challengeId, cleared ? 'verified' : 'failed', moderatorId, note ?? null]
     );
@@ -371,18 +401,32 @@ export async function resolveChallenge(
         decided.user_id,
       ]);
     } else {
-      await client.query(
-        `UPDATE users
-            SET trust_stage                  = 'suspended',
-                suspended_at                 = now(),
-                suspended_by_user_id         = $2,
-                suspension_reason            = $3,
-                trust_stage_before_suspension = 'challenged'
-          WHERE id = $1`,
-        [decided.user_id, moderatorId, note ?? 'Confirmed gender misdeclaration']
+      // Through moderation.service, not written here. Suspension is one fact
+      // in four columns bound by chk_users_suspension_paired, and this used to
+      // be a second copy of the statement that sets them — the copy that
+      // hard-coded trust_stage_before_suspension = 'challenged' rather than
+      // recording the stage the account actually held.
+      await applySuspension(
+        client,
+        moderatorId,
+        decided.user_id,
+        'challenged',
+        note ?? 'Confirmed gender misdeclaration'
       );
       await cancelOpenRequests(client, decided.user_id);
     }
+
+    // The report that prompted the challenge is answered by this decision, so
+    // it closes with it. Left open it would keep 409ing that reporter out of
+    // filing about this person again, because uq_open_report_per_pair covers
+    // 'open' and 'under_review' — a partial index whose whole point is that a
+    // CLOSED case frees the pair to report a second incident.
+    await closeReport(
+      client,
+      decided.report_id,
+      moderatorId,
+      cleared ? 'dismissed' : 'resolved'
+    );
 
     return { userId: decided.user_id, objectKey: decided.selfie_object_key };
   });
@@ -429,56 +473,4 @@ export async function attestVerified(userId: string): Promise<void> {
       [userId]
     );
   });
-}
-
-/* ------------------------------------------------------------------ *
- * Shared
- * ------------------------------------------------------------------ */
-
-async function lockUser(
-  client: PoolClient,
-  userId: string
-): Promise<{ id: string; trust_stage: TrustStage; is_admin: boolean }> {
-  const { rows } = await client.query<{
-    id: string;
-    trust_stage: TrustStage;
-    is_admin: boolean;
-  }>(`SELECT id, trust_stage, is_admin FROM users WHERE id = $1 FOR UPDATE`, [userId]);
-
-  const row = rows[0];
-  if (!row) {
-    throw new HttpError(404, 'No such account');
-  }
-  return row;
-}
-
-/**
- * Retire a blocked student's open searches.
- *
- * The pool queries stop showing them from the moment their stage changes, but a
- * proposal already written would keep them listed in the other person's
- * `GET /api/rides/incoming` as somebody whose yes is waiting — for a ride that
- * can no longer be created. Same shape as `expireStaleRequests`.
- */
-async function cancelOpenRequests(client: PoolClient, userId: string): Promise<void> {
-  const { rows } = await client.query<{ id: string }>(
-    `UPDATE ride_requests
-        SET status = 'cancelled'
-      WHERE user_id = $1
-        AND status IN ('pending', 'proposed')
-        AND ride_group_id IS NULL
-      RETURNING id`,
-    [userId]
-  );
-
-  if (rows.length === 0) return;
-
-  const ids = rows.map((row) => row.id);
-  await client.query(
-    `UPDATE ride_match_proposals
-        SET response_a = CASE WHEN request_a_id = ANY($1) THEN 'declined' ELSE response_a END,
-            response_b = CASE WHEN request_b_id = ANY($1) THEN 'declined' ELSE response_b END
-      WHERE request_a_id = ANY($1) OR request_b_id = ANY($1)`,
-    [ids]
-  );
 }
