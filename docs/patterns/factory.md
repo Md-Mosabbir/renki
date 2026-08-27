@@ -156,6 +156,13 @@ start at campus` — a message a human wrote, before the INSERT, instead of a
 
 ## Tests
 
+### Running them
+
+```bash
+# from the repo root — needs Postgres, and TRUNCATES every table
+npm run test:int -w @renki/backend -- ride-group.factory
+```
+
 [`ride-group.factory.int.test.ts`](../../backend/src/services/groups/ride-group.factory.int.test.ts) — 5 integration tests:
 
 - A friends group lands `forming` / `friends` / capacity = members / creator set

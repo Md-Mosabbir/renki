@@ -137,6 +137,15 @@ cards described in that README are still there.
 
 ## Tests
 
+### Running them
+
+```bash
+# from the repo root. No database and no network — the whole file is offline.
+npm test -w @renki/backend -- geocoding
+```
+
+Runs 7 tests: these 3 plus the 4 belonging to the two proxies in the same file.
+
 [`geocoding.test.ts`](../../backend/src/services/geocoding/geocoding.test.ts) — the Adapter's share is 3 unit tests, all with **no network**:
 
 - Turns string lat/lon into numbers

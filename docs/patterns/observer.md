@@ -145,6 +145,14 @@ Read out by `GET /api/notifications` and rendered by
 
 ## Tests
 
+### Running them
+
+```bash
+# from the repo root
+npm test         -w @renki/backend -- event-bus   # 6 unit, no database
+npm run test:int -w @renki/backend -- events      # 6 integration (5 + 1)
+```
+
 [`event-bus.subject.test.ts`](../../backend/src/events/event-bus.subject.test.ts) — 6 unit tests, no database:
 
 - Notifies every registered observer

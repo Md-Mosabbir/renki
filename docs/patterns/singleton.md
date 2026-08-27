@@ -121,6 +121,18 @@ live database.
 
 ## Tests
 
+### Running them
+
+```bash
+# from the repo root
+npm run typecheck -w @renki/backend    # `new Database()` outside the class fails HERE
+npm run test:int  -w @renki/backend    # all 46, every file sharing the one pool
+```
+
+There is no `npm test -- singleton` to run, and that is the honest answer rather
+than a gap: the invariant is enforced by the private constructor, so it is the
+type checker that refuses a second instance, not an assertion.
+
 No dedicated unit test, and that is a deliberate limit worth stating plainly to
 anyone reading this: the invariant is enforced by the **compiler** and by the
 runtime `#` field, not by an assertion. `new Database()` outside the class does

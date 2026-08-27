@@ -130,6 +130,13 @@ geometry to prove "these two match" is a test of `h3-js`, not of Renki.
 
 ## Tests
 
+### Running them
+
+```bash
+# from the repo root — needs Postgres, and TRUNCATES every table
+npm run test:int -w @renki/backend -- proximity
+```
+
 [`proximity.int.test.ts`](../../backend/src/services/matching/proximity.int.test.ts) — 7 integration tests against a real Postgres:
 
 - Deals a card for a destination NEAR mine, not only identical to mine
