@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
+import { Search, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
 
 import { AppShell, Page } from '@/components/app-shell';
 import { AppLoader } from '@/components/motion/mark';
+import { RideOption, StatusBanner } from '@/components/patterns';
 import { IncomingMatches } from '@/components/rides/incoming-matches';
 import { OpenSearchBanner } from '@/components/rides/open-search-banner';
 import { RecentRides } from '@/components/rides/recent-rides';
@@ -58,7 +59,7 @@ export default function RidesPage() {
               student is also "not verified", and showing them both would offer
               a Verify button beside the actual thing being asked of them —
               two competing instructions, one of which does nothing. */}
-          {challenged ? <ChallengeBanner /> : <StatusBanner user={current} />}
+          {challenged ? <ChallengeBanner /> : <AccountStatusBanner user={current} />}
 
           {/* Someone picked you. Above the fork on purpose: it is the only
               thing on this page that another person is waiting on. */}
@@ -85,7 +86,7 @@ export default function RidesPage() {
               enabled={rideable}
               icon={Search}
               title="Match with a stranger"
-              body="One other rider leaving campus around the same time, going near where you are going. You both swipe; a ride happens only if you both say yes."
+              body="One other rider leaving campus around the same time. You both swipe; a ride happens only if you both say yes."
             />
 
             <RideOption
@@ -110,56 +111,11 @@ export default function RidesPage() {
   );
 }
 
-/**
- * One of the two ways to find a ride.
- *
- * Disabled rather than hidden when unverified: a student who cannot see the
- * option cannot learn that verifying is what unlocks it.
- */
-function RideOption({
-  href,
-  enabled,
-  icon: Icon,
-  title,
-  body,
-}: {
-  href: string;
-  enabled: boolean;
-  icon: typeof Search;
-  title: string;
-  body: string;
-}) {
-  const inner = (
-    <>
-      <Icon className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="block text-base font-medium">{title}</span>
-        <span className="text-muted-foreground mt-1 block text-sm leading-relaxed">
-          {body}
-        </span>
-      </span>
-      {enabled && (
-        <ArrowRight className="text-muted-foreground mt-1 size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-      )}
-    </>
-  );
-
-  const className = `border-border flex w-full items-start gap-4 border p-5 text-left transition-colors ${
-    enabled ? 'group hover:border-foreground/30 cursor-pointer' : 'opacity-50'
-  }`;
-
-  if (!enabled) {
-    return (
-      <div className={className} aria-disabled>
-        {inner}
-      </div>
-    );
-  }
-
+function LoadingScreen() {
   return (
-    <Link href={href} className={className}>
-      {inner}
-    </Link>
+    <div className="flex flex-1 items-center justify-center">
+      <AppLoader label="Loading" />
+    </div>
   );
 }
 
@@ -170,79 +126,45 @@ function greeting(): string {
   return 'Good evening';
 }
 
-function LoadingScreen() {
-  return (
-    <div className="flex flex-1 items-center justify-center">
-      <AppLoader label="Loading" />
-    </div>
-  );
-}
-
 /**
  * What state this account is in — and only when that is worth saying.
  *
- * This used to be a "Not verified yet" banner with a Verify button, and both
- * halves described a flow that no longer exists. Nobody is verified at signup:
- * a student declares a gender and rides, and identity is only ever questioned
- * after somebody reports it (see the gender challenge in CLAUDE.md). The button
- * called POST /api/dev/verify, which is not mounted in production and answered
- * 404 there — while the dashboard simultaneously greyed out both ride options
- * for exactly the students it was shown to. A new account could not use the app
- * at all, and the way out was a button that failed.
- *
- * So there are two states now, not three:
- *   suspended — a moderator has stopped this account; nothing to offer
- *   otherwise — say who they will be matched with, and link to the setting
- *
- * A challenged student never reaches here: rides/page renders ChallengeBanner
- * instead, because being asked to confirm something is a different situation
- * from being told you may not ride.
+ * Uses the shared StatusBanner pattern with ride-dashboard copy.
  */
-function StatusBanner({ user }: { user: User }) {
+function AccountStatusBanner({ user }: { user: User }) {
   const suspended = isSuspended(user);
+  const firstName = user.name.split(' ')[0];
 
   return (
-    <section
-      className={`border-l-2 p-5 transition-colors duration-500 ${
-        suspended ? 'border-destructive bg-destructive/5' : 'border-border bg-muted/40'
-      }`}
-    >
-      <div className="flex items-start gap-4">
-        {suspended ? (
-          <ShieldAlert
-            className="text-destructive mt-0.5 size-5 shrink-0"
-            strokeWidth={2}
-          />
+    <StatusBanner
+      tone={suspended ? 'danger' : 'brand'}
+      icon={
+        suspended ? (
+          <ShieldAlert className="size-5" strokeWidth={2} />
         ) : (
-          <ShieldCheck className="text-brand mt-0.5 size-5 shrink-0" strokeWidth={2} />
-        )}
-
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-sm font-medium">
-            {suspended ? 'Account suspended' : user.name.split(' ')[0]}
-          </p>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            {suspended
-              ? 'A moderator has suspended this account, so you cannot be matched. Contact the Renki team if you think this is a mistake.'
-              : `${user.university} · ${
-                  user.matchOpenToAll
-                    ? 'open to riders of any gender'
-                    : `matched only with ${user.gender} riders`
-                }`}
-          </p>
-          {/* A banner that states a setting has to lead to the setting.
-              Otherwise it reads as a fixed rule of the app, which is exactly
-              what it stopped being. */}
-          {!suspended && (
-            <Link
-              href="/profile"
-              className="text-brand inline-block text-xs font-medium underline-offset-4 hover:underline"
-            >
-              Change who you are matched with
-            </Link>
-          )}
-        </div>
-      </div>
-    </section>
+          <ShieldCheck className="size-5" strokeWidth={2} />
+        )
+      }
+      title={suspended ? 'Account suspended' : firstName}
+      body={
+        suspended
+          ? 'A moderator has suspended this account, so you cannot be matched. Contact the Renki team if you think this is a mistake.'
+          : `${user.university} · ${
+              user.matchOpenToAll
+                ? 'open to riders of any gender'
+                : `matched only with ${user.gender} riders`
+            }`
+      }
+      action={
+        !suspended ? (
+          <Link
+            href="/profile"
+            className="text-brand inline-block text-xs font-medium underline-offset-4 hover:underline"
+          >
+            Change who you are matched with
+          </Link>
+        ) : undefined
+      }
+    />
   );
 }

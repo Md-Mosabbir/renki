@@ -5,7 +5,7 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-5.5 w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-none px-2 py-0.5 font-mono text-[11px] font-medium tracking-[0.08em] uppercase whitespace-nowrap border-l-2 transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+  "group/badge inline-flex h-[22px] w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-none py-0 pl-1.5 pr-2 font-mono text-[11px] font-medium tracking-[0.08em] uppercase whitespace-nowrap border-l-2 transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
   {
     variants: {
       variant: {
@@ -32,8 +32,15 @@ function Badge({
 }: React.ComponentProps<"span"> &
   VariantProps<typeof badgeVariants> & {
     asChild?: boolean
+    /** Amber square hop — Renki's "right now" marker. */
     live?: boolean
   }) {
+  const vName = variant ?? "default"
+  const liveClass =
+    vName === "default" || vName === "brand"
+      ? "bg-brand"
+      : "bg-current"
+
   if (asChild) {
     return (
       <Slot.Root
@@ -57,8 +64,8 @@ function Badge({
       {live && (
         <span
           aria-hidden
-          className="renki-mark-hop size-1.5 shrink-0 bg-brand"
-          style={{ animationDuration: '1.6s' }}
+          className={cn("renki-mark-hop size-1.5 shrink-0", liveClass)}
+          style={{ animationDuration: "1.6s" }}
         />
       )}
       {children}
@@ -67,5 +74,3 @@ function Badge({
 }
 
 export { Badge, badgeVariants }
-
-

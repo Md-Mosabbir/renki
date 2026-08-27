@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renki — design tools</title>
+  <link rel="stylesheet" href="../Design/styles.css">
+  <style>
+    body { padding: 24px; background: var(--paper); max-width: 1200px; margin: 0 auto; }
+    h1 { font-family: var(--font-display); font-weight: 400; margin: 0 0 8px; }
+    .lead { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 32px; line-height: 1.5; }
+    .cols { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 28px; align-items: start; }
+    @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+    .stack { display: grid; gap: 16px; }
+    .lbl { font: var(--type-label); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    ul { margin: 0; padding: 0; }
+    .toc { margin-bottom: 32px; padding: 16px; border: var(--hairline); background: var(--background); }
+    .toc a { color: var(--foreground); font-size: var(--text-sm); }
+    .toc li { margin: 6px 0; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="../Design/_ds_bundle.js"></script>
+  <script src="https://unpkg.com/lucide@0.446.0/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <h1>Renki design tools</h1>
+  <p class="lead">
+    Visual index of UI implemented in <code>frontend/</code> and specified in <code>Design/</code>.
+    Buttons wipe an amber rule on hover; badges are stamps with a leading rule in the tone colour.
+  </p>
+
+  <nav class="toc" aria-label="Sections">
+    <strong class="lbl">On this page</strong>
+    <ul>
+      <li><a href="#core">Core — Buttons &amp; Badges</a></li>
+      <li><a href="#patterns">Patterns — rides, groups, match deck</a></li>
+      <li><a href="#exports">Frontend exports</a></li>
+    </ul>
+  </nav>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const D = window.RenkiDesignSystem_4a6e65;
+    const { Button, Badge, StatusBanner, RideOption, GroupCard, FriendRow, SwipeCard, NavShell } = D;
+    const ic = (n, s = 16) => <i data-lucide={n} style={{ width: s, height: s }} />;
+    const NAV = [
+      { href: '/rides', label: 'Rides', icon: ic('car', 20) },
+      { href: '/friends', label: 'Friends', icon: ic('users', 20) },
+      { href: '/groups', label: 'Groups', icon: ic('users-round', 20) },
+      { href: '/history', label: 'History', icon: ic('history', 20) },
+      { href: '/profile', label: 'Profile', icon: ic('user', 20) },
+    ];
+
+    function CoreDemo() {
+      return (
+        <section id="core" className="stack" style={{ marginBottom: 40 }}>
+          <div>
+            <div className="lbl">Buttons · hover to wipe the amber rule, the mark turns 45°</div>
+            <div className="row">
+              <Button>Continue</Button>
+              <Button variant="outline">Decline</Button>
+              <Button variant="secondary">Skip</Button>
+              <Button variant="ghost">Cancel ride</Button>
+              <Button variant="destructive">Tap again to cancel</Button>
+              <Button disabled>Disabled</Button>
+            </div>
+          </div>
+          <div>
+            <div className="lbl">Badges · stamps, mono, leading rule in the tone colour</div>
+            <div className="row">
+              <Badge live>Everyone is in</Badge>
+              <Badge variant="brand" live>Wants to ride with you</Badge>
+              <Badge variant="secondary">Waiting on replies</Badge>
+              <Badge variant="destructive">Suspended</Badge>
+              <Badge variant="outline">placeholder</Badge>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function PatternsDemo() {
+      return (
+        <section id="patterns" className="cols">
+          <div className="stack">
+            <StatusBanner
+              tone="brand"
+              icon={ic('shield-check', 20)}
+              title="Sadia"
+              body="North South University · matched only with female riders"
+              action={<a href="#" style={{ fontSize: 'var(--text-xs)', fontWeight: 500 }} onClick={(e) => e.preventDefault()}>Change who you are matched with</a>}
+            />
+            <RideOption
+              icon={ic('search', 20)}
+              title="Match with a stranger"
+              body="One other rider leaving campus around the same time. You both swipe; a ride happens only if you both say yes."
+            />
+            <GroupCard
+              origin="NSU"
+              destination="Dhanmondi 27"
+              departure="Fri 14 Mar, 6:30 PM"
+              status="matched"
+              highlighted
+              members={[
+                { name: 'Sadia Rahman', organiser: true },
+                { name: 'Imran Kabir' },
+                { name: 'Tanvir Hossain' },
+              ]}
+              footer={<><Button size="sm" square>Start ride</Button><Button size="sm" variant="ghost">Cancel ride</Button></>}
+            />
+            <div>
+              <div className="lbl">People</div>
+              <ul>
+                <FriendRow name="Sadia Rahman" note="Met 3 Mar"><Button size="sm" variant="outline">Remove</Button></FriendRow>
+                <FriendRow name="Imran Kabir" note="Wants to be friends"><Button size="sm">Accept</Button></FriendRow>
+              </ul>
+            </div>
+            <NavShell items={NAV} active="/rides" />
+          </div>
+          <div className="stack">
+            <div className="lbl">Match deck</div>
+            <div style={{ height: 360 }}>
+              <SwipeCard
+                name="Imran Kabir"
+                badge={{ label: 'Wants to ride with you', accepted: true }}
+                intent="yes"
+                offset={26}
+                facts={[
+                  { icon: ic('flag'), label: 'Waiting at', value: 'NSU gate 1' },
+                  { icon: ic('map-pin'), label: 'Going to', value: 'Dhanmondi 27' },
+                  { icon: ic('navigation'), label: 'From your drop-off', value: '0.8 km away' },
+                  { icon: ic('clock'), label: 'Leaving', value: '6:30 PM · 5 min from yours' },
+                ]}
+              />
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function ExportsList() {
+      const rows = [
+        ['frontend/components/ui/button.tsx', 'Amber mark + bottom rule wipe on hover'],
+        ['frontend/components/ui/badge.tsx', 'Stamp badges — mono, border-l-2, live hop'],
+        ['frontend/components/patterns/status-banner.tsx', 'Account-state left-rule banner'],
+        ['frontend/components/patterns/ride-option.tsx', 'Ride fork row with → on hover'],
+        ['frontend/components/patterns/swipe-card.tsx', 'Match deck card composition'],
+        ['frontend/components/patterns/index.ts', 'Barrel export for all patterns'],
+        ['frontend/app/rides/page.tsx', 'Dashboard using StatusBanner + RideOption'],
+        ['frontend/components/rides/swipe-deck.tsx', 'Deck drag + SwipeCard'],
+        ['frontend/components/groups/group-card.tsx', 'Group card with live "Everyone is in" badge'],
+      ];
+      return (
+        <section id="exports" style={{ marginTop: 40 }}>
+          <div className="lbl">Frontend exports</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
+            <thead>
+              <tr style={{ borderBottom: 'var(--hairline)', textAlign: 'left' }}>
+                <th style={{ padding: '8px 0' }}>File</th>
+                <th style={{ padding: '8px 0' }}>What changed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([file, note]) => (
+                <tr key={file} style={{ borderBottom: 'var(--hairline)' }}>
+                  <td style={{ padding: '10px 0', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>{file}</td>
+                  <td style={{ padding: '10px 0', color: 'var(--text-muted)' }}>{note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ marginTop: 16, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+            Also open <code>/lab/design</code> in the Next.js app for the same compositions with Tailwind.
+          </p>
+        </section>
+      );
+    }
+
+    function App() {
+      return (
+        <>
+          <CoreDemo />
+          <PatternsDemo />
+          <ExportsList />
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    setTimeout(() => window.lucide && window.lucide.createIcons(), 60);
+  </script>
+</body>
+</html>
