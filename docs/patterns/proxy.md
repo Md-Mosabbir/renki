@@ -201,11 +201,40 @@ brief puts the `resolveDestination` wiring in a separate change. See
 | `POST /api/groups/:id/start-code` | `CODE_ISSUE` | same, for the ride-start code                          |
 | `GET /api/rides/request/:id/deck` | `DECK`       | the heaviest query in the app                          |
 
-`app.ts` sets `app.set('trust proxy', 1)` for this. Render puts a load balancer
-in front of the process, so without it `req.ip` is the balancer's address — one
-bucket for the entire university, and the first caller to hit the limit locks
-everybody out. `1` trusts exactly one hop rather than believing a header the
-client could have written itself.
+`app.ts` sets `app.set('trust proxy', 3)` for this, and the number was
+**measured, not guessed** — which turned out to matter. Render puts a load
+balancer in front of the process, so `req.ip` is only the real caller if Express
+is told how many hops to look through. One probe request against the live URL
+reported:
+
+```
+socket           ::1
+X-Forwarded-For  103.92.153.50, 172.71.124.241, 10.28.147.130
+                 └ real client ┘ └ Cloudflare ┘ └ Render router ┘
+```
+
+Express resolves `req.ip` from `[socket, ...XFF.reverse()]`, so index 1 is
+Render's own router and the caller is index 3.
+
+It shipped as `1` first, and the failure is worth keeping: **24 requests against
+a limit of 20 produced no 429 at all.** The request log showed why — `req.ip`
+came back as `10.28.147.130` and `10.29.100.108` _alternating_, because Render
+balances across several routers, so the throttle key rotated and no bucket ever
+filled. Wrong in both directions: a caller gets N times their allowance, and
+every real client behind one router would have shared a bucket and throttled
+each other.
+
+A fixed hop count rather than `true`: `true` takes the **leftmost**
+`X-Forwarded-For` entry, which the client writes, so anyone could rotate their
+own key and bypass the limiter entirely. Counting inward from the socket ignores
+anything a client prepends — a spoofed entry lands at index 4, and index 3 is
+still the real caller.
+
+Verified live afterwards, over a single keep-alive connection so one TCP socket
+means one source address: 20 × 400, then `429` with `Retry-After: 59` on request 21. The first attempt used 24 separate connections and saw no 429 at all — an
+ISP NAT pool had split them across `103.92.153.50` and `.51`, which is a good
+reminder that the deployed thing is what has to be tested, and that a
+rate-limiter test needs a pinned connection.
 
 ## Edge cases handled
 

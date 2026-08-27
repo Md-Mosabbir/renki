@@ -978,8 +978,12 @@ INBOUND, is keyed per caller, and REJECTS with 429 — queuing inbound holds eve
 socket open under a flood, which turns the limiter into an amplifier. It wraps
 one named handler rather than sitting in the middleware chain, which is what
 makes it a Proxy and not Chain of Responsibility, and it needs
-`app.set('trust proxy', 1)`: without it `req.ip` is Render's load balancer and
-the whole university shares one bucket.
+`app.set('trust proxy', 3)`, MEASURED from a live probe — socket `::1`, then
+`XFF = client, Cloudflare, Render router`, so the caller is index 3. At `1`,
+`req.ip` was Render's own routers _alternating_ between two addresses, the key
+rotated, and 24 requests against a limit of 20 produced no 429 at all. Not
+`true`: that takes the leftmost XFF entry, which the client writes, so the
+limiter would be trivially bypassable. Re-measure if the edge ever changes.
 
 **The stack is not wired into any request path yet.** `grep -rn geocoding
 backend/src` outside that folder returns nothing, and geocoding still happens in
