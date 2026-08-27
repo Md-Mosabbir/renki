@@ -633,13 +633,22 @@ async function findByPair(a: string, b: string): Promise<FriendshipRow | null> {
  * ------------------------------------------------------------------ */
 
 /**
- * Alphabet for a code someone may have to read aloud or type.
+ * Alphabet for a meetup code.
  *
- * No I, L, O, U, 0 or 1: the first four are unreadable in pairs on a phone
- * screen and the last two are the classic misread. 32 characters divides 256
- * exactly, so mapping a random byte into it introduces no modulo bias.
+ * 32 characters, and the count is the point: `byte % 32` is uniform because 32
+ * divides 256 exactly. This was 30 characters, with a comment claiming it was
+ * 32 and therefore unbiased — it was neither. `256 % 30 == 16`, so the first
+ * sixteen characters came up 9 times per 256 bytes and the rest 8, a 12.5%
+ * skew on every character of every code.
+ *
+ * Not exploitable at ten characters over a thirty-second window, and never was.
+ * It was simply wrong, and the comment asserting otherwise was describing the
+ * ride-start generator in a different file.
+ *
+ * No I or O: they are dropped for legibility, which costs nothing here since
+ * the code is only ever delivered as a QR symbol and never read by a person.
  */
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 10;
 
 function generateMeetupCode(): string {
