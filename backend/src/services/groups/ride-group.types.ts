@@ -1,4 +1,8 @@
-import type { GroupMemberRow, RideGroupGender, RideGroupRow } from '../../models/ride-group.model.js';
+import type {
+  GroupMemberRow,
+  RideGroupGender,
+  RideGroupRow,
+} from '../../models/ride-group.model.js';
 
 /**
  * One row `insertMembers` will write into `ride_group_invites`.

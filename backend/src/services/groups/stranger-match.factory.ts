@@ -53,14 +53,12 @@ export class StrangerMatchFactory extends RideGroupFactory<StrangerMatchInput> {
   protected members(input: StrangerMatchInput): MemberSpec[] {
     // Both riders are in from the moment this runs — swiping yes on both
     // sides IS the acceptance. Nobody here is 'pending'.
-    return [input.riderAId, input.riderBId].map(
-      (userId): MemberSpec => ({
-        userId,
-        direction: 'requested',
-        status: 'accepted',
-        respondedAt: 'now',
-        dropoffLocationId: input.dropoffs[userId] ?? null,
-      })
-    );
+    return [input.riderAId, input.riderBId].map((userId): MemberSpec => ({
+      userId,
+      direction: 'requested',
+      status: 'accepted',
+      respondedAt: 'now',
+      dropoffLocationId: input.dropoffs[userId] ?? null,
+    }));
   }
 }

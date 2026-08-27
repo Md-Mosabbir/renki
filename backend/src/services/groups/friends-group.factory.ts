@@ -78,15 +78,13 @@ export class FriendsGroupFactory extends RideGroupFactory<FriendsGroupInput> {
         respondedAt: 'now',
         dropoffLocationId: input.dropoffs?.[input.creatorId] ?? null,
       },
-      ...input.friendIds.map(
-        (id): MemberSpec => ({
-          userId: id,
-          direction: 'invited',
-          status: 'pending',
-          respondedAt: null,
-          dropoffLocationId: input.dropoffs?.[id] ?? null,
-        })
-      ),
+      ...input.friendIds.map((id): MemberSpec => ({
+        userId: id,
+        direction: 'invited',
+        status: 'pending',
+        respondedAt: null,
+        dropoffLocationId: input.dropoffs?.[id] ?? null,
+      })),
     ];
   }
 }
