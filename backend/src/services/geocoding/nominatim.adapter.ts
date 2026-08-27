@@ -105,8 +105,7 @@ async function fetchJson(url: string): Promise<unknown> {
       headers: {
         Accept: 'application/json',
         // Nominatim policy: identify the application.
-        'User-Agent':
-          'Renki/1.0 (university ride-sharing; contact: renki@northsouth.edu)',
+        'User-Agent': 'Renki/1.0 (university carpooling; contact: renki@northsouth.edu)',
       },
     });
     if (!response.ok) return null;

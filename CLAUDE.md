@@ -1,7 +1,13 @@
 # Renki
 
-University ride-sharing platform. npm workspaces monorepo: `backend/` is an
-Express 5 + TypeScript API; `frontend/` is a Next.js 16 web client.
+University **carpooling** platform: Renki matches students going the same way so
+they can share one ride. It does NOT dispatch vehicles — there is no driver,
+fare, seat or payment in the schema, and `lib/rides/handoff.ts` opens a deep
+link into a ride-hailing app once a group is matched. "Ride sharing" names the
+thing Renki hands off to, so do not use it in copy.
+
+npm workspaces monorepo: `backend/` is an Express 5 + TypeScript API;
+`frontend/` is a Next.js 16 web client.
 
 ## Commands
 

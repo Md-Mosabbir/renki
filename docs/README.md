@@ -1,8 +1,10 @@
 # Renki — documentation
 
-Renki is a ride-sharing platform for North South University: students match with
-strangers going the same way, or ride with friends they have already met in
-person. npm workspaces monorepo — `backend/` is an Express 5 + TypeScript API
+Renki is a carpooling platform for North South University: it matches students
+going the same way so they can share one ride. They match with strangers heading
+the same direction, or ride with friends they have already met in person. Renki
+matches people and does not dispatch vehicles — there is no driver, fare or
+payment anywhere in the schema. npm workspaces monorepo — `backend/` is an Express 5 + TypeScript API
 over raw SQL, `frontend/` is a Next.js 16 web client.
 
 **New to the codebase? Start with
