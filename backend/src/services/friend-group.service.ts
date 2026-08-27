@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 
-import { query, transaction } from '../db/pool.js';
+import { query, transaction } from '../db/database.singleton.js';
 import type {
   GroupMemberRow,
   RideGroupGender,

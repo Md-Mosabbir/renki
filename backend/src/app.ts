@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import routes from './routes/index.js';
-import { registerSubscribers } from './events/index.js';
+import { registerObservers } from './events/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
 /**
@@ -26,7 +26,7 @@ export function createApp() {
   //
   // Here and not in server.ts, which only binds a port — tests build the app
   // without ever listening, and they need the listeners wired too.
-  registerSubscribers();
+  registerObservers();
 
   // --- Routes ---
   app.get('/', (_req, res) => {

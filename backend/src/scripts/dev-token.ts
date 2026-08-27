@@ -1,4 +1,4 @@
-import { closePool, query } from '../db/pool.js';
+import { closePool, query } from '../db/database.singleton.js';
 import { env } from '../config/env.js';
 import { signAccessToken } from '../services/auth.service.js';
 

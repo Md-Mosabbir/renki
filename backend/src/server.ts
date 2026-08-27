@@ -1,6 +1,6 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { closePool, isDatabaseReachable } from './db/pool.js';
+import { closePool, isDatabaseReachable } from './db/database.singleton.js';
 
 const app = createApp();
 

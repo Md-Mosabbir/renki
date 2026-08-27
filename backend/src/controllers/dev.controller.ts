@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { toPublicUser } from '../models/user.model.js';
 import type { UserRow } from '../models/user.model.js';
 import { env } from '../config/env.js';
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { attestVerified } from '../services/gender-challenge.service.js';
 import { signAccessToken } from '../services/auth.service.js';
 import { findById } from '../services/user.service.js';

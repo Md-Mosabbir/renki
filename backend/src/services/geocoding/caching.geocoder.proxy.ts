@@ -10,7 +10,7 @@ import type { Coordinates, Geocoder, Place } from './geocoder.js';
  * Sits OUTSIDE rate limiting so cache hits never wait in the queue.
  */
 
-export class CachingGeocoder implements Geocoder {
+export class CachingGeocoderProxy implements Geocoder {
   private readonly reverseCache = new Map<string, string>();
   private readonly searchCache = new Map<string, Place[]>();
 

@@ -1,7 +1,7 @@
-import { query } from '../../db/pool.js';
+import { query } from '../../db/database.singleton.js';
 import { EVENT_KIND } from '../domain-event.js';
 import type { DomainEvent } from '../domain-event.js';
-import type { Observer } from '../event-bus.js';
+import type { Observer } from '../event-bus.subject.js';
 
 /**
  * Turns an event into rows in `notifications` — the RECORD a student sees when

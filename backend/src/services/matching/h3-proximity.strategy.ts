@@ -6,7 +6,7 @@ import type {
   MatchCandidate,
   MatchInput,
   MatchingStrategy,
-} from './matching-strategy.js';
+} from './matching.strategy.js';
 
 /**
  * Match on destination proximity, using Uber's H3 grid.

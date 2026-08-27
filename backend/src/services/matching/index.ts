@@ -1,12 +1,12 @@
 import { ExactDestinationStrategy } from './exact-destination.strategy.js';
 import { H3ProximityStrategy } from './h3-proximity.strategy.js';
-import type { MatchingStrategy } from './matching-strategy.js';
+import type { MatchingStrategy } from './matching.strategy.js';
 
 export type {
   MatchCandidate,
   MatchInput,
   MatchingStrategy,
-} from './matching-strategy.js';
+} from './matching.strategy.js';
 export { H3_RESOLUTION } from './h3-proximity.strategy.js';
 export { ExactDestinationStrategy, H3ProximityStrategy };
 

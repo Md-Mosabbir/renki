@@ -1,4 +1,4 @@
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 
 /**
  * SERVICE — reading the notification record.

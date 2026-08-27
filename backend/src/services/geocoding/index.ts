@@ -1,22 +1,25 @@
-import { CachingGeocoder } from './caching.geocoder.proxy.js';
+import { CachingGeocoderProxy } from './caching.geocoder.proxy.js';
 import type { Geocoder } from './geocoder.js';
 import { NominatimAdapter } from './nominatim.adapter.js';
-import { RateLimitedGeocoder } from './rate-limited.geocoder.proxy.js';
+import { RateLimitedGeocoderProxy } from './rate-limited.geocoder.proxy.js';
 
 export type { Coordinates, Geocoder, Place } from './geocoder.js';
-export { CachingGeocoder } from './caching.geocoder.proxy.js';
+export { CachingGeocoderProxy } from './caching.geocoder.proxy.js';
 export { MockGeocoder } from './mock.geocoder.js';
 export { NominatimAdapter, shortAddress, toPlace } from './nominatim.adapter.js';
-export { MIN_INTERVAL_MS, RateLimitedGeocoder } from './rate-limited.geocoder.proxy.js';
+export {
+  MIN_INTERVAL_MS,
+  RateLimitedGeocoderProxy,
+} from './rate-limited.geocoder.proxy.js';
 
 /**
  * Assembled stack: cache outside rate limit so hits skip the queue.
  *
- *   CachingGeocoder → RateLimitedGeocoder → NominatimAdapter
+ *   CachingGeocoderProxy → RateLimitedGeocoderProxy → NominatimAdapter
  *
  * Which geocoder is live is decided here only — no `provider` parameter
  * anywhere else.
  */
-export const geocoder: Geocoder = new CachingGeocoder(
-  new RateLimitedGeocoder(new NominatimAdapter())
+export const geocoder: Geocoder = new CachingGeocoderProxy(
+  new RateLimitedGeocoderProxy(new NominatimAdapter())
 );

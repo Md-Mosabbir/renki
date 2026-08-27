@@ -1,10 +1,10 @@
-import { query } from '../../db/pool.js';
+import { query } from '../../db/database.singleton.js';
 import { messageFor } from '../../services/push-messages.js';
 import type { NotificationKind } from '../../services/push-messages.js';
 import { sendToUsers } from '../../services/push.service.js';
 import { EVENT_KIND } from '../domain-event.js';
 import type { DomainEvent } from '../domain-event.js';
-import type { Observer } from '../event-bus.js';
+import type { Observer } from '../event-bus.subject.js';
 
 /**
  * Makes a phone buzz.

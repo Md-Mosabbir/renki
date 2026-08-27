@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { greatCircleDistance } from 'h3-js';
 
-import type { MatchCandidate, MatchInput } from './matching-strategy.js';
+import type { MatchCandidate, MatchInput } from './matching.strategy.js';
 
 /**
  * The eligibility rules every strategy shares, in one place.

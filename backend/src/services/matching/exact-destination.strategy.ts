@@ -5,7 +5,7 @@ import type {
   MatchCandidate,
   MatchInput,
   MatchingStrategy,
-} from './matching-strategy.js';
+} from './matching.strategy.js';
 
 /**
  * Match only people heading to the exact same saved location.

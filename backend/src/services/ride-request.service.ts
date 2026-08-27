@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { latLngToCell } from 'h3-js';
 
-import { query, transaction } from '../db/pool.js';
+import { query, transaction } from '../db/database.singleton.js';
 import type {
   GroupMemberRow,
   RideGroupGender,
@@ -254,7 +254,7 @@ export interface Deck {
  * Deal the swipe deck.
  *
  * The strategy decides who is close enough; everything about who is *allowed*
- * is in candidate-query.ts. See services/matching/matching-strategy.ts for why
+ * is in candidate-query.ts. See services/matching/matching.strategy.ts for why
  * the split falls there.
  */
 export async function dealDeck(userId: string, requestId: string): Promise<Deck> {

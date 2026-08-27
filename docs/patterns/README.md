@@ -4,18 +4,91 @@ Six patterns, four people. All six are in the codebase.
 Each one does a job the app genuinely needs — none of them were added to tick a
 box, and each doc starts by showing the real problem it solves.
 
-| Pattern         | Owner    | Where the code lives              | Doc                                                           |
-| --------------- | -------- | --------------------------------- | ------------------------------------------------------------- |
-| Singleton ✅    | Mosabbir | `backend/src/db/pool.ts`          | in the file                                                   |
-| Strategy ✅     | Mosabbir | `backend/src/services/matching/`  | in the files                                                  |
-| **Observer** ✅ | Enamul   | `backend/src/events/`             | [doc](../../backend/src/events/README.md)                     |
-| **Factory** ✅  | Partho   | `backend/src/services/groups/`    | [doc](../../backend/src/services/groups/README.md)            |
-| **Adapter** ✅  | Shikder  | `backend/src/services/geocoding/` | [doc](../../backend/src/services/geocoding/README.md#adapter) |
-| **Proxy** ✅    | Shikder  | `backend/src/services/geocoding/` | [doc](../../backend/src/services/geocoding/README.md#proxy)   |
+| Pattern         | Owner    | Where the code lives                   | Doc                                                           |
+| --------------- | -------- | -------------------------------------- | ------------------------------------------------------------- |
+| Singleton ✅    | Mosabbir | `backend/src/db/database.singleton.ts` | in the file                                                   |
+| Strategy ✅     | Mosabbir | `backend/src/services/matching/`       | in the files                                                  |
+| **Observer** ✅ | Enamul   | `backend/src/events/`                  | [doc](../../backend/src/events/README.md)                     |
+| **Factory** ✅  | Partho   | `backend/src/services/groups/`         | [doc](../../backend/src/services/groups/README.md)            |
+| **Adapter** ✅  | Shikder  | `backend/src/services/geocoding/`      | [doc](../../backend/src/services/geocoding/README.md#adapter) |
+| **Proxy** ✅    | Shikder  | `backend/src/services/geocoding/`      | [doc](../../backend/src/services/geocoding/README.md#proxy)   |
 
 Every bold row was written by its owner and is merged. The geocoding README is
 still written as a brief, in the second person, because the code follows it step
 for step — its "Where it gets used" section is the one part still outstanding.
+
+## The file naming scheme
+
+**A file that implements a pattern says so in its name, and the pattern word
+comes last:**
+
+```
+<what-it-is-about>.<pattern>.ts
+```
+
+| File                                  | Reads as                          |
+| ------------------------------------- | --------------------------------- |
+| `db/database.singleton.ts`            | the database, as a Singleton      |
+| `matching/h3-proximity.strategy.ts`   | H3 proximity, as a Strategy       |
+| `matching/matching.strategy.ts`       | matching — the Strategy interface |
+| `events/event-bus.subject.ts`         | the event bus, as the Subject     |
+| `events/observers/push.observer.ts`   | push, as an Observer              |
+| `groups/ride-group.factory.ts`        | ride groups, as a Factory         |
+| `geocoding/nominatim.adapter.ts`      | Nominatim, as an Adapter          |
+| `geocoding/caching.geocoder.proxy.ts` | a caching geocoder, as a Proxy    |
+
+Shikder's geocoding folder arrived written this way and it is the better
+convention, so the rest of the codebase was renamed to match rather than leaving
+one folder speaking a different language.
+
+**It is a rename and nothing else.** Not one line of behaviour changed with it —
+same classes, same exports, same SQL. `Database.getInstance()` is still the
+Singleton, `eventBus` is still the Subject, `MatchingStrategy` is still the
+interface. What moved is the filename, and the reason to move it is that
+`pool.ts` and `event-bus.ts` did not say which pattern they were, so the only
+way to find the Singleton was to already know where it lived.
+
+**Two files deliberately do NOT carry a suffix**, and the exception is worth
+keeping straight: `geocoding/geocoder.ts` and `groups/ride-group.types.ts`.
+Those are the _target_ interfaces — what Renki wants — and naming one
+`geocoder.adapter.ts` would say the interface is the Adapter, when the whole
+point of an Adapter is that it is the thing translating _into_ an interface that
+knows nothing about it. `matching.strategy.ts` is not a counterexample: a
+Strategy interface really is part of the Strategy pattern and has no meaning
+without it, whereas `Geocoder` would still be the right interface if Nominatim
+vanished tomorrow.
+
+Test files take the suffix of the file they test — `event-bus.subject.test.ts`,
+`ride-group.factory.int.test.ts` — so a rename never leaves a test orphaned from
+its subject by name.
+
+### The class name carries it too
+
+The filename is half of it. **The class says the pattern as well**, which is the
+half the faculty's own Java examples lean on — `PoundToKgAdapter`,
+`ProxyDocument` beside `RealDocument`, an `Observer` and a `Subject` interface
+named exactly that.
+
+| Pattern   | In Renki                                                                              |
+| --------- | ------------------------------------------------------------------------------------- |
+| Singleton | `Database` — `getInstance()`, private constructor                                     |
+| Strategy  | `MatchingStrategy`, `H3ProximityStrategy`, `ExactDestinationStrategy`                 |
+| Observer  | `Observer` + `Subject` interfaces; `EventBus`, `PushObserver`, `NotificationObserver` |
+| Factory   | `RideGroupFactory`, `FriendsGroupFactory`, `StrangerMatchFactory`                     |
+| Adapter   | `NominatimAdapter`                                                                    |
+| Proxy     | `CachingGeocoderProxy`, `RateLimitedGeocoderProxy`                                    |
+
+The two Proxy classes are the ones this changed: they were `CachingGeocoder` and
+`RateLimitedGeocoder`, so the folder said Proxy and the class did not. That is
+the reading order backwards — you meet the class name at the call site in
+`index.ts`, and the filename only if you go looking. `registerSubscribers()`
+became `registerObservers()` for the same reason, and because `EventBus`'s own
+method was already `registerObserver`.
+
+**The interfaces are named for the ROLE, not the pattern**, and that is not an
+inconsistency: `Observer` and `Subject` _are_ the role names the pattern gives
+them, whereas `Geocoder` is what Renki wants from anything that geocodes and
+would be the right name with no Adapter in sight.
 
 ### Four entries changed after the table was first written
 
@@ -75,7 +148,7 @@ if you have not:
    almost every time.
 
 2. **Never create a database connection.** No `new Pool()`, no `new Client()`.
-   Import `query` or `transaction` from `../db/pool.js` and use those.
+   Import `query` or `transaction` from `../db/database.singleton.js` and use those.
 
 3. **Never put a value into a SQL string.** Always
    `query('... WHERE id = $1', [id])`. Never

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { makeCampus, makeUser, resetDb, soon } from '../test/harness.js';
-import { registerSubscribers } from './index.js';
+import { registerObservers } from './index.js';
 import { createRideRequest, swipe } from '../services/ride-request.service.js';
 import { requestFriendship } from '../services/friendship.service.js';
 import { listNotifications } from '../services/notification.service.js';
@@ -31,7 +31,7 @@ describe('events reach the notification table', () => {
   beforeEach(async () => {
     await resetDb();
     // app.ts does this at startup; these tests never build the app.
-    registerSubscribers();
+    registerObservers();
   });
 
   it('notifies the addressee of a friend request', async () => {

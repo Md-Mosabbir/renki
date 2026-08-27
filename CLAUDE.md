@@ -57,7 +57,7 @@ with `moduleResolution: NodeNext`. `ERR_MODULE_NOT_FOUND` is almost always this.
 Raw SQL over `node-postgres`. **No ORM** — a deliberate team decision; don't
 propose Prisma/Drizzle/TypeORM.
 
-- `backend/src/db/pool.ts` owns the single `pg.Pool`, as an explicit
+- `backend/src/db/database.singleton.ts` owns the single `pg.Pool`, as an explicit
   **Singleton** (`Database.getInstance()`, private constructor). Never construct
   another `Pool` or `Client` anywhere.
 - Prefer the module-level `query()` / `transaction()` helpers over
@@ -895,7 +895,7 @@ lands.
 
 The push side deliberately has **no dependency on the bus**, which is why it
 compiled and shipped before it existed; `services/push-messages.ts` is the join
-and `subscribers/push.subscriber.ts` is four lines.
+and `observers/push.observer.ts` is four lines.
 
 **Web Push with self-generated VAPID keys, which is why it costs nothing.** The
 endpoints belong to Google, Mozilla and Apple, and Renki holds an account with
@@ -947,7 +947,7 @@ and much the more common one.
 ## Geocoding
 
 `backend/src/services/geocoding/` is an Adapter wrapped in two Proxies:
-`CachingGeocoder → RateLimitedGeocoder → NominatimAdapter`, assembled once in
+`CachingGeocoderProxy → RateLimitedGeocoderProxy → NominatimAdapter`, assembled once in
 `index.ts` and exported as a single `geocoder`.
 
 **Which geocoder is live is decided in `index.ts` and nowhere else.** No
@@ -985,7 +985,7 @@ may only call the one below it.
 - Controllers are the only layer touching `req`/`res`.
 - Services must never import `Request`/`Response`; the controller extracts what's
   needed and passes plain arguments.
-- **Controllers never import `db/pool.js`.** SQL belongs in services (or a
+- **Controllers never import `db/database.singleton.js`.** SQL belongs in services (or a
   `repositories/` layer beneath them). This is what keeps logic testable without
   a live database.
 - `app.ts` builds the app and never listens; `server.ts` is the only file that
@@ -993,6 +993,19 @@ may only call the one below it.
 
 Throw `HttpError(status, message)` to control status codes. Express 5 forwards
 async rejections to the error middleware, so no `try/catch` + `next(err)`.
+
+**A file that implements a design pattern names the pattern, last:**
+`<subject>.<pattern>.ts`. `db/database.singleton.ts`, `event-bus.subject.ts`,
+`observers/push.observer.ts`, `h3-proximity.strategy.ts`,
+`ride-group.factory.ts`, `nominatim.adapter.ts`,
+`caching.geocoder.proxy.ts`. The exceptions are the _target_ interfaces —
+`geocoding/geocoder.ts` and `groups/ride-group.types.ts` — because an Adapter
+translates INTO an interface that knows nothing about it, so putting `.adapter`
+on the interface would say the opposite of what the pattern means.
+
+The renames that established this were purely mechanical: same classes, same
+exports, same SQL, no behaviour touched. `docs/patterns/README.md` holds the
+full table and the reasoning.
 
 ## Environment
 

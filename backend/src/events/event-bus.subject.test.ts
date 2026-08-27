@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { eventBus } from './event-bus.js';
+import { eventBus } from './event-bus.subject.js';
 import type { DomainEvent } from './domain-event.js';
-import type { Observer } from './event-bus.js';
+import type { Observer } from './event-bus.subject.js';
 
 const event: DomainEvent = {
   name: 'friend.requested',

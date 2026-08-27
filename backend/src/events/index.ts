@@ -1,10 +1,10 @@
-import { eventBus } from './event-bus.js';
-import { notificationObserver } from './subscribers/notification.subscriber.js';
-import { pushObserver } from './subscribers/push.subscriber.js';
+import { eventBus } from './event-bus.subject.js';
+import { notificationObserver } from './observers/notification.observer.js';
+import { pushObserver } from './observers/push.observer.js';
 
-export { eventBus } from './event-bus.js';
+export { eventBus } from './event-bus.subject.js';
 export type { DomainEvent, DomainEventName } from './domain-event.js';
-export type { Observer, Subject } from './event-bus.js';
+export type { Observer, Subject } from './event-bus.subject.js';
 export { EVENT_KIND } from './domain-event.js';
 
 /**
@@ -15,7 +15,7 @@ export { EVENT_KIND } from './domain-event.js';
  * registration of these same instances idempotent when tests call createApp()
  * more than once.
  */
-export function registerSubscribers(): void {
+export function registerObservers(): void {
   eventBus.registerObserver(notificationObserver);
   eventBus.registerObserver(pushObserver);
 }

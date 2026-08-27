@@ -21,15 +21,15 @@ and zero edits to any service.
 
 ```
 backend/src/events/
-  domain-event.ts       the event shape, the ten names, and EVENT_KIND
-  event-bus.ts          Subject + Observer interfaces, and EventBus
-  index.ts              re-exports + registerSubscribers()
-  subscribers/
-    notification.subscriber.ts   writes the `notifications` row
-    push.subscriber.ts           makes the phone buzz
-  event-bus.test.ts            unit — the pattern's mechanics, no database
-  events.int.test.ts           integration — events reach the table
-  event-kinds.int.test.ts      integration — all ten do
+  domain-event.ts               the event shape, the ten names, and EVENT_KIND
+  event-bus.subject.ts          Subject + Observer interfaces, and EventBus
+  index.ts                      re-exports + registerObservers()
+  observers/
+    notification.observer.ts    writes the `notifications` row
+    push.observer.ts            makes the phone buzz
+  event-bus.subject.test.ts     unit — the pattern's mechanics, no database
+  events.int.test.ts            integration — events reach the table
+  event-kinds.int.test.ts       integration — all ten do
 ```
 
 Read back through `services/notification.service.ts` →
@@ -39,7 +39,7 @@ and rendered by `components/notifications/notification-bell.tsx`.
 ## The pattern
 
 `EventBus` implements `Subject`; both subscribers implement `Observer`.
-`registerSubscribers()` is called once from `app.ts` — never from `server.ts`,
+`registerObservers()` is called once from `app.ts` — never from `server.ts`,
 which only binds a port, and tests build the app without it. Registration is
 idempotent because the observers live in a `Set`.
 
@@ -116,7 +116,7 @@ card and said no is a feature nobody asked for.
 
 `services/push.service.ts` and `services/push-messages.ts` have **no import from
 this directory**, which is why they shipped and were tested before the bus
-existed. `push.subscriber.ts` is the join, and it is short.
+existed. `push.observer.ts` is the join, and it is short.
 
 `messageFor` covers all ten kinds and its rules are asserted in
 `push-messages.test.ts` — **first names only, never a meetup or ride-start

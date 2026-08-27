@@ -13,7 +13,7 @@ import type { Coordinates, Geocoder, Place } from './geocoder.js';
 /** Policy floor is 1/s; 1.1 s leaves room for clock jitter. */
 export const MIN_INTERVAL_MS = 1100;
 
-export class RateLimitedGeocoder implements Geocoder {
+export class RateLimitedGeocoderProxy implements Geocoder {
   private lane: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly inner: Geocoder) {}

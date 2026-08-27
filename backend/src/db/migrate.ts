@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { closePool, query, transaction } from './pool.js';
+import { closePool, query, transaction } from './database.singleton.js';
 
 /**
  * Plain-SQL migration runner.

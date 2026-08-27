@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 
 import { env } from '../config/env.js';
-import { isDatabaseReachable } from '../db/pool.js';
+import { isDatabaseReachable } from '../db/database.singleton.js';
 
 /**
  * Liveness + readiness in one endpoint.

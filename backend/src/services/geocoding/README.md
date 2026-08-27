@@ -149,7 +149,7 @@ Both proxies implement `Geocoder` and hold a `Geocoder`. That is the pattern:
 are stacked.
 
 ```ts
-export class CachingGeocoder implements Geocoder {
+export class CachingGeocoderProxy implements Geocoder {
   constructor(private readonly inner: Geocoder) {}
 
   async reverse(point: Coordinates): Promise<string> {
@@ -211,8 +211,8 @@ an inline `setTimeout` into a pattern you can point at in a report.
 **Order matters, and it is worth a sentence in your report:**
 
 ```ts
-export const geocoder: Geocoder = new CachingGeocoder(
-  new RateLimitedGeocoder(new NominatimAdapter())
+export const geocoder: Geocoder = new CachingGeocoderProxy(
+  new RateLimitedGeocoderProxy(new NominatimAdapter())
 );
 ```
 
@@ -235,7 +235,7 @@ address should come back named.
 - **Do not let a geocoder throw.** See Step 1. A dead geocoder costs a label,
   never a ride.
 - **Do not put a value into a SQL string.** `query('... WHERE key = $1', [key])`.
-- **Do not create a database connection.** Import `query` from `../db/pool.js`.
+- **Do not create a database connection.** Import `query` from `../db/database.singleton.js`.
 - **Do not make `search` an autocomplete.** Nominatim's policy forbids
   per-keystroke queries. Submit on Enter or a button.
 - **Do not send a `display_name` straight through.** Two parts maximum, or every

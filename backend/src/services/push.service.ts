@@ -1,7 +1,7 @@
 import webpush from 'web-push';
 
 import { env } from '../config/env.js';
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { HttpError } from '../utils/http-error.js';
 
 /**

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { CachingGeocoder } from './caching.geocoder.proxy.js';
+import { CachingGeocoderProxy } from './caching.geocoder.proxy.js';
 import type { Coordinates, Geocoder, Place } from './geocoder.js';
 import { shortAddress, toPlace } from './nominatim.adapter.js';
-import { MIN_INTERVAL_MS, RateLimitedGeocoder } from './rate-limited.geocoder.proxy.js';
+import {
+  MIN_INTERVAL_MS,
+  RateLimitedGeocoderProxy,
+} from './rate-limited.geocoder.proxy.js';
 
 /** Counting fake — proves proxy behaviour without network. */
 class CountingGeocoder implements Geocoder {
@@ -27,10 +30,10 @@ class CountingGeocoder implements Geocoder {
 
 const POINT: Coordinates = { latitude: 23.7461, longitude: 90.3742 };
 
-describe('CachingGeocoder', () => {
+describe('CachingGeocoderProxy', () => {
   it('calls the inner geocoder once for two identical reverse lookups', async () => {
     const inner = new CountingGeocoder();
-    const cached = new CachingGeocoder(inner);
+    const cached = new CachingGeocoderProxy(inner);
 
     await cached.reverse(POINT);
     await cached.reverse(POINT);
@@ -40,7 +43,7 @@ describe('CachingGeocoder', () => {
 
   it('calls the inner geocoder twice for two different points', async () => {
     const inner = new CountingGeocoder();
-    const cached = new CachingGeocoder(inner);
+    const cached = new CachingGeocoderProxy(inner);
 
     await cached.reverse(POINT);
     await cached.reverse({ latitude: 23.81, longitude: 90.42 });
@@ -52,7 +55,7 @@ describe('CachingGeocoder', () => {
     const inner = new CountingGeocoder('ignored', [
       { latitude: 23.75, longitude: 90.37, address: 'Dhanmondi, Dhaka' },
     ]);
-    const cached = new CachingGeocoder(inner);
+    const cached = new CachingGeocoderProxy(inner);
 
     await cached.search('Dhanmondi');
     await cached.search('  dhanmondi  ');
@@ -61,10 +64,10 @@ describe('CachingGeocoder', () => {
   });
 });
 
-describe('RateLimitedGeocoder', () => {
+describe('RateLimitedGeocoderProxy', () => {
   it('waits at least MIN_INTERVAL_MS between sequential calls', async () => {
     const inner = new CountingGeocoder();
-    const limited = new RateLimitedGeocoder(inner);
+    const limited = new RateLimitedGeocoderProxy(inner);
 
     const start = Date.now();
     await limited.reverse(POINT);

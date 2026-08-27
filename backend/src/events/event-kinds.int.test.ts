@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { makeUser, resetDb } from '../test/harness.js';
-import { eventBus, EVENT_KIND, registerSubscribers } from './index.js';
+import { eventBus, EVENT_KIND, registerObservers } from './index.js';
 import type { DomainEventName } from './index.js';
 
 describe('every declared event reaches the notification table', () => {
   beforeEach(async () => {
     await resetDb();
     eventBus.clear();
-    registerSubscribers();
+    registerObservers();
   });
 
   it('publishes all ten kinds without a CHECK violation', async () => {

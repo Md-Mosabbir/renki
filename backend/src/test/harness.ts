@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { signAccessToken } from '../services/auth.service.js';
 import type { Gender, TrustStage } from '../models/user.model.js';
 
