@@ -1,12 +1,15 @@
 # Factory — kinds of ride
 
-**Owner: Partho**
+**Owner: Partho. Built and in production.**
 
-## The problem this solves
+This file described what to build until the pattern landed. It now describes
+what is here.
 
-A `ride_groups` row is created in two places, and the rules for a valid one
-**depend on which kind of ride it is**. The database says so in four separate
-constraints:
+## The problem it solved
+
+A `ride_groups` row is created for two different kinds of ride, and the rules
+for a valid one **depend on which kind it is**. The database says so in four
+separate constraints:
 
 ```sql
 chk_matched_capacity_is_two           formation='matched' → capacity = 2
@@ -16,11 +19,11 @@ chk_ride_groups_formation             formation IN ('matched', 'friends')
 ```
 
 Every one is written as _"this formation, therefore this rule."_ That is the
-schema stating, four times, that there are **kinds of ride and each kind has its
-own construction rules**.
+schema stating, four times, that there are kinds of ride and each kind has its
+own construction rules.
 
-The code does not say that anywhere. The rules are spelled out inline in
-whichever service happens to be doing the creating:
+The code did not say that anywhere. The rules were spelled out inline in
+whichever service happened to be doing the creating:
 
 |                      | `createFriendGroup`                  | `createMatchedGroup`      |
 | -------------------- | ------------------------------------ | ------------------------- |
@@ -33,204 +36,98 @@ whichever service happens to be doing the creating:
 | members              | organiser accepted, invitees pending | both accepted             |
 | per-member drop-off  | **not supported**                    | written for both riders   |
 
-Two paths, two sets of rules, no shared vocabulary. It has already cost
-something: `GROUP_COLUMNS` was declared twice and hand-written a third time,
-all three missing `started_at`, and `GET /api/groups` reported `startedAt: null`
-for rides that had genuinely started. That is fixed, but the two creation paths
-that produced it are still separate.
+Two paths, two sets of rules, no shared vocabulary — and it had already cost
+something. `GROUP_COLUMNS` was declared twice and hand-written a third time, all
+three missing `started_at`, so `GET /api/groups` reported `startedAt: null` for
+rides that had genuinely started.
 
-**The constraints do not solve this.** They are the last line of defence — they
+**The constraints never solved this.** They are the last line of defence: they
 can reject a bad group, they cannot help the code build a good one. That they
-are all formation-conditional is the argument _for_ a factory, not against it.
+are all formation-conditional is the argument _for_ a factory.
 
-## The gap it closes
-
-`ride_group_invites.dropoff_location_id` exists (migration 23),
-`toPublicRideGroup` reads it and collapses it correctly for **every** group, and
-CLAUDE.md documents what it means. But:
-
-```ts
-export interface FriendGroupInput {
-  friendIds;
-  originLocationId;
-  destinationLocationId;
-  departureTime;
-} // ← no drop-offs, anywhere
-```
-
-Only a stranger match can record where each person gets out. Six friends going
-to slightly different places cannot express it, even though the schema and the
-read path both support it. Making members a step the factory owns closes that
-for both kinds at once.
-
-## What a Factory is, here
-
-Not a `switch (kind)` and not a map of config objects. **A real one: an abstract
-creator, one concrete creator per kind of ride, each producing its own concrete
-product.** The caller instantiates the creator it wants — there is no branching
-anywhere, which is the whole point of the pattern.
-
-Renki already uses the pattern twice, both worth reading first:
-
-- `getObjectStore()` in `services/storage.service.ts`
-- `selectStrategy()` in `services/matching/index.ts`
-
-Both are simpler than what is being asked for here; neither has concrete product
-classes. Yours is the full shape.
-
-## What you are building
+## What is here
 
 ```
 backend/src/services/groups/
-  ride-group.types.ts        the product shape and MemberSpec
-  ride-group.factory.ts      THE ABSTRACT CREATOR
-  stranger-match.factory.ts  concrete creator + concrete product
-  friends-group.factory.ts   concrete creator + concrete product
-  ride-group.factory.test.ts tests
-  index.ts                   re-exports
+  ride-group.factory.ts        abstract creator — owns the sequence
+  friends-group.factory.ts     concrete creator
+  stranger-match.factory.ts    concrete creator
+  ride-group.types.ts          MemberSpec, RideGroupHeader, CreatedRideGroup
+  index.ts                     one import site
+  ride-group.factory.int.test.ts
 ```
 
-### Step 1 — the abstract creator
-
-`ride-group.factory.ts`
-
-The base class owns the **sequence**, which is identical for every kind: insert
-the header, insert the members, load them back. Subclasses answer the questions
-that differ. Nothing here knows what a "friends group" is.
+`RideGroupFactory.create()` owns the invariant sequence — insert the header,
+insert the members, read both back — and **has no `if` in it**. What differs
+between kinds is answered by five protected methods that each concrete creator
+implements once:
 
 ```ts
-export abstract class RideGroupFactory {
-  /** The invariant sequence. Subclasses never override this. */
-  async create(client: PoolClient, input: RideGroupInput): Promise<CreatedRideGroup> {
-    this.assertOriginAllowed(input);
-
-    const group = await insertHeader(client, {
-      originLocationId: input.originLocationId,
-      originKind: input.originKind,
-      destinationLocationId: input.destinationLocationId,
-      departureTime: input.departureTime,
-      gender: input.gender,
-      formation: this.formation(),
-      status: this.initialStatus(),
-      capacity: this.capacity(input),
-      createdByUserId: this.createdBy(input),
-    });
-
-    await insertMembers(client, group.id, this.members(input));
-
-    return { group, members: await loadGroupMembers(client, group.id) };
-  }
-
-  protected abstract formation(): string;
-  protected abstract initialStatus(): string;
-  protected abstract capacity(input: RideGroupInput): number;
-  protected abstract createdBy(input: RideGroupInput): string | null;
-  protected abstract members(input: RideGroupInput): MemberSpec[];
-  protected abstract assertOriginAllowed(input: RideGroupInput): void;
-}
+protected abstract formation(): string;
+protected abstract initialStatus(): string;
+protected abstract capacity(input: TInput): number;
+protected abstract createdBy(input: TInput): string | null;
+protected abstract members(input: TInput): MemberSpec[];
+protected abstract assertOriginAllowed(input: TInput): void;
 ```
 
-`insertHeader` and `insertMembers` are private functions in this file. They are
-the **only** place the `ride_groups` and `ride_group_invites` column lists are
-written. That is what stops the `startedAt` class of bug coming back.
+**There is no `kind` string read anywhere.** `TInput` is fixed by which concrete
+class the caller instantiates, which is what makes this a Factory Method rather
+than a switch wearing a costume.
 
-### Step 2 — the concrete creators
+## It is the only writer
 
-`friends-group.factory.ts`
+```
+friend-group.service.ts:124   new FriendsGroupFactory().create(...)
+ride-request.service.ts:634   new StrangerMatchFactory().create(...)
+```
+
+Those are the only two places in Renki that create a ride group, and both go
+through it. `grep -rn "INSERT INTO ride_groups" src` returns exactly one hit —
+`ride-group.factory.ts`. Same for `ride_group_invites`. That is what makes the
+pattern real rather than decorative: the raw INSERTs it replaced are gone, not
+sitting beside it.
+
+`GROUP_COLUMNS` now lives in one place for creation, and lists all three
+lifecycle stamps — `started_at`, `completed_at`, `cancelled_at`. `cancelled_at`
+was missed when the constant was first written and the test asserting "every
+column" checked only the two that were there, so it passed. The test now loops
+over all three.
+
+## The gap it closed
+
+`ride_group_invites.dropoff_location_id` has existed since migration 23 and
+`toPublicRideGroup` reads it for every group, but only a stranger match ever
+wrote one. `FriendsGroupInput` now takes an optional `dropoffs` map keyed by
+user id, and a missing entry means "the group's destination".
+
+## Eligibility is NOT in the factory, deliberately
+
+`createFriendGroup` still runs all of these **before** it calls `create()`:
 
 ```ts
-export class FriendsGroupFactory extends RideGroupFactory {
-  protected formation() {
-    return 'friends';
-  }
-  protected initialStatus() {
-    return 'forming';
-  }
-  protected capacity(input) {
-    return input.members.length;
-  }
-  protected createdBy(input) {
-    return input.creatorId;
-  }
-
-  protected assertOriginAllowed() {
-    // Any direction. Every pair has already met in person, which is exactly
-    // what the campus rule exists to establish. See CLAUDE.md, Ride direction.
-  }
-
-  protected members(input) {
-    return [
-      // The organiser asked, so they have already answered.
-      {
-        userId: input.creatorId,
-        direction: 'requested',
-        status: 'accepted',
-        respondedAt: 'now',
-        dropoffLocationId: input.dropoffs?.[input.creatorId],
-      },
-      ...input.friendIds.map((id) => ({
-        userId: id,
-        direction: 'invited',
-        status: 'pending',
-        respondedAt: null,
-        dropoffLocationId: input.dropoffs?.[id],
-      })),
-    ];
-  }
-}
+assertEveryoneMayRide(people); // trust_stage
+resolveGroupGender(creator, people); // computed, not asserted
+await assertEveryPairIsFriends(client, members, people); // the clique rule
 ```
 
-`stranger-match.factory.ts` answers the same questions differently: `'matched'`,
-`'matched'`, always `2`, `null`, both riders accepted with their own drop-off,
-and an `assertOriginAllowed` that **throws unless the origin is campus**.
+A factory decides how a group is **built**, never who is **allowed** in it.
+Putting a safety rule behind a swappable class would mean a class could switch
+it off. The same reasoning keeps the gender rule, the campus rule and the
+blocked-pair exclusion in `candidate-query.ts` rather than behind
+`MatchingStrategy`.
 
-That last one matters. Today the campus rule is enforced only by a CHECK, so a
-service that got it wrong learns about it as a constraint violation. In the
-factory it is a named method with a message a human wrote.
+`assertOriginAllowed` is the one apparent exception, and it is not one: every
+rule it checks is also a CHECK constraint. It buys a message a human wrote,
+arriving before the INSERT, instead of a raw constraint violation after it.
 
-### Step 3 — bind it
+## Extending it
 
-Two call sites, one line each:
-
-```ts
-// friend-group.service.ts
-const { group, members } = await new FriendsGroupFactory().create(client, input);
-
-// ride-request.service.ts
-const { group, members } = await new StrangerMatchFactory().create(client, input);
-```
-
-Then delete both inline `INSERT INTO ride_groups`, all three
-`INSERT INTO ride_group_invites`, and the duplicated capacity and status
-literals.
-
-**No switch, no registry, no `kind` string passed anywhere.** The caller knows
-what it is building and says so by picking a class. If you find yourself writing
-`if (kind === ...)`, the pattern has been lost.
-
-### Step 4 — tests
-
-`ride-group.factory.test.ts`, integration (these write rows):
-
-- a friends group lands `forming` / `friends` / capacity = members / creator set
-- a stranger match lands `matched` / `matched` / capacity 2 / creator null
-- `StrangerMatchFactory` **refuses a non-campus origin** with a readable error,
-  not a constraint violation
-- a friends group can now record a per-member drop-off — the gap this closes
-- both kinds return every column, `started_at` included
-
-Write the drop-off test first and watch it fail against today's code. A
-regression test that has never failed proves nothing; see CLAUDE.md, Tests.
-
-## The demo
-
-The extensibility story is the part worth showing. Adding a kind of ride today
-means editing two services and writing a third INSERT. After this it is one
-file:
+A third kind of ride is one new file:
 
 ```ts
 // driver-offered.factory.ts
-export class DriverOfferedFactory extends RideGroupFactory {
+export class DriverOfferedFactory extends RideGroupFactory<DriverOfferedInput> {
   protected formation() {
     return 'driver_offered';
   }
@@ -240,17 +137,17 @@ export class DriverOfferedFactory extends RideGroupFactory {
   protected capacity() {
     return 4;
   }
-  protected createdBy(input) {
+  protected createdBy(input: DriverOfferedInput) {
     return input.driverId;
   }
   protected assertOriginAllowed() {}
-  protected members(input) {
+  protected members(input: DriverOfferedInput) {
     return [
       {
         userId: input.driverId,
-        direction: 'requested',
-        status: 'accepted',
-        respondedAt: 'now',
+        direction: 'requested' as const,
+        status: 'accepted' as const,
+        respondedAt: 'now' as const,
       },
     ];
   }
@@ -259,18 +156,22 @@ export class DriverOfferedFactory extends RideGroupFactory {
 
 No service touched, no caller touched, no existing factory touched.
 
-**Be honest about the limit:** a new formation still needs a migration to widen
-`chk_ride_groups_formation`, and possibly its own CHECK. The factory does not
+**The honest limit:** a new formation still needs a migration to widen
+`chk_ride_groups_formation`, and probably its own CHECK. The factory does not
 remove that. What it removes is the code change being spread across three files.
 
 ## Traps
 
-- **Do not put eligibility in a factory.** Who may ride with whom is decided in
-  `candidate-query.ts` and `assertEveryPairIsFriends`. A factory decides how a
-  group is _built_, never who is _allowed_ in it. Putting a safety rule behind a
-  swappable class means a class could switch it off.
+- **Do not put eligibility in a factory.** See above.
 - **Do not publish events from the factory.** `group.invited` and `group.ready`
   are published by the services, after the transaction commits. See
   `events/README.md`.
 - **Do not accept a `kind` parameter.** That is a switch wearing a costume.
+- **Do not add a fourth copy of the column list.** Three already drifted once.
 - Remember the `.js` extension on every relative import.
+
+## Checking it works
+
+```bash
+npm run test:int -w @renki/backend   # ride-group.factory.int.test.ts, 5 tests
+```
