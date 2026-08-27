@@ -10,6 +10,7 @@ import {
   postSwipe,
 } from '../controllers/rides.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { DECK, throttled } from '../middlewares/throttled.handler.proxy.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.get('/history', getHistory);
 router.get('/request', getOpenRequest);
 router.post('/request', postRideRequest);
 router.delete('/request/:id', deleteRideRequest);
-router.get('/request/:id/deck', getDeck);
+router.get('/request/:id/deck', throttled(DECK, getDeck));
 router.post('/request/:id/swipe', postSwipe);
 
 export default router;

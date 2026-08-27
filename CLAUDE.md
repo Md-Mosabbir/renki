@@ -971,6 +971,16 @@ fifty students are fifty browser IPs, but one Render instance is one IP, and
 exceeding it gets the whole application banned. This is why the rate-limit unit
 test really sleeps — it is also why the unit suite is no longer ~300ms.
 
+**Rate limiting exists in two places and they are opposites.** `geocoding/
+rate-limited.geocoder.proxy.ts` limits calls we make OUTBOUND, is keyed by
+nothing, and DELAYS. `middlewares/throttled.handler.proxy.ts` limits calls made
+INBOUND, is keyed per caller, and REJECTS with 429 — queuing inbound holds every
+socket open under a flood, which turns the limiter into an amplifier. It wraps
+one named handler rather than sitting in the middleware chain, which is what
+makes it a Proxy and not Chain of Responsibility, and it needs
+`app.set('trust proxy', 1)`: without it `req.ip` is Render's load balancer and
+the whole university shares one bucket.
+
 **The stack is not wired into any request path yet.** `grep -rn geocoding
 backend/src` outside that folder returns nothing, and geocoding still happens in
 `frontend/lib/geo/nominatim.ts`. Connecting it is a separate change to

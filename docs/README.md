@@ -15,14 +15,14 @@ Six patterns, four people. Every one solves a problem the app genuinely has;
 none was added to tick a box, and each doc starts from the problem rather than
 from a textbook definition.
 
-| Pattern            | Owner                  | Why it's here                                                                                      | Doc                                   |
-| ------------------ | ---------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **Singleton**      | Md-Mosabbir            | Postgres accepts a fixed number of connections, so exactly one `pg.Pool` may exist in the process  | [singleton.md](patterns/singleton.md) |
-| **Strategy**       | Md-Mosabbir            | "Nearby" has more than one right answer, and the safety rules must not be swappable along with it  | [strategy.md](patterns/strategy.md)   |
-| **Observer**       | Enamul Hassan          | Ten events each need a durable record _and_ a push, and a failed push must never roll back a ride  | [observer.md](patterns/observer.md)   |
-| **Factory Method** | ParthoKSarkar          | A friends group and a stranger match are built by different rules into the same table              | [factory.md](patterns/factory.md)     |
-| **Adapter**        | Shahedul-Islam-Shikder | OpenStreetMap returns string coordinates and six-part addresses; Renki wants numbers and two parts | [adapter.md](patterns/adapter.md)     |
-| **Proxy**          | Shahedul-Islam-Shikder | Nominatim allows 1 request/second per IP, and the server is one IP for the whole university        | [proxy.md](patterns/proxy.md)         |
+| Pattern            | Owner                  | Why it's here                                                                                                     | Doc                                   |
+| ------------------ | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Singleton**      | Md-Mosabbir            | Postgres accepts a fixed number of connections, so exactly one `pg.Pool` may exist in the process                 | [singleton.md](patterns/singleton.md) |
+| **Strategy**       | Md-Mosabbir            | "Nearby" has more than one right answer, and the safety rules must not be swappable along with it                 | [strategy.md](patterns/strategy.md)   |
+| **Observer**       | Enamul Hassan          | Ten events each need a durable record _and_ a push, and a failed push must never roll back a ride                 | [observer.md](patterns/observer.md)   |
+| **Factory Method** | ParthoKSarkar          | A friends group and a stranger match are built by different rules into the same table                             | [factory.md](patterns/factory.md)     |
+| **Adapter**        | Shahedul-Islam-Shikder | OpenStreetMap returns string coordinates and six-part addresses; Renki wants numbers and two parts                | [adapter.md](patterns/adapter.md)     |
+| **Proxy**          | Shahedul-Islam-Shikder | Two access problems, opposite directions: Nominatim's 1 req/sec outbound limit, and per-caller throttling inbound | [proxy.md](patterns/proxy.md)         |
 
 [patterns/README.md](patterns/README.md) holds the **naming convention** every
 one of these follows (`<subject>.<pattern>.ts`, pattern word last) and the

@@ -15,6 +15,16 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js
 export function createApp() {
   const app = express();
 
+  /**
+   * Render (and Vercel, and every other PaaS) puts a load balancer in front of
+   * this process, so the socket's peer address is the balancer and the real
+   * client address arrives in X-Forwarded-For. Without this, `req.ip` is one
+   * value for the entire university — and `ThrottledHandlerProxy` keyed on it
+   * would let the first caller lock everybody out. `1` trusts exactly one hop,
+   * rather than believing a header the client could have written itself.
+   */
+  app.set('trust proxy', 1);
+
   // --- Global middleware (order matters) ---
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigin, credentials: true }));
