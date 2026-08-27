@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import {
   Car,
-  Check,
   Clock,
   Flag,
   History,
@@ -24,8 +23,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 /**
- * Design lab — static compositions mirroring Design/patterns.card.html.
- * Not linked from production nav; for visual QA of tokens and patterns.
+ * Design lab — every shared component on one page, in the states that are
+ * awkward to reach by hand: a badge mid-pulse, a swipe card with an intent
+ * stamp, a group card that is full.
+ *
+ * Not linked from any nav and imports nothing but real `components/` — it
+ * renders the same parts the app does, so a token that resolves to nothing is
+ * visible here before it is visible in production. That is the whole job, and
+ * it is why this is a route rather than a static page: a separate HTML harness
+ * would have its own copy of the CSS and would keep agreeing with itself while
+ * the app changed underneath it.
  */
 export default function DesignLabPage() {
   return (
@@ -35,12 +42,15 @@ export default function DesignLabPage() {
           <h1 className="font-display text-3xl tracking-tight">Design lab</h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
             Buttons wipe an amber rule on hover; badges are stamps with a leading rule.
-            See also <code className="text-xs">tools/index.html</code>.
+            Every component below is imported from{' '}
+            <code className="text-xs">components/</code> — nothing here is a copy.
           </p>
         </header>
 
         <section className="space-y-4">
-          <p className="renki-eyebrow">Buttons · hover to wipe the amber rule, the mark turns 45°</p>
+          <p className="renki-eyebrow">
+            Buttons · hover to wipe the amber rule, the mark turns 45°
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button>Continue</Button>
             <Button variant="outline">Decline</Button>
@@ -57,7 +67,9 @@ export default function DesignLabPage() {
         </section>
 
         <section className="space-y-4">
-          <p className="renki-eyebrow">Badges · stamps, mono, leading rule in the tone colour</p>
+          <p className="renki-eyebrow">
+            Badges · stamps, mono, leading rule in the tone colour
+          </p>
           <div className="flex flex-wrap gap-2">
             <Badge live>Everyone is in</Badge>
             <Badge variant="brand" live>
@@ -135,7 +147,10 @@ export default function DesignLabPage() {
               </ul>
             </div>
 
-            <nav aria-label="Demo nav" className="border-border flex gap-4 border-t pt-4 text-xs">
+            <nav
+              aria-label="Demo nav"
+              className="border-border flex gap-4 border-t pt-4 text-xs"
+            >
               {[
                 { href: '/rides', label: 'Rides', icon: Car },
                 { href: '/friends', label: 'Friends', icon: Users },
@@ -143,7 +158,10 @@ export default function DesignLabPage() {
                 { href: '/history', label: 'History', icon: History },
                 { href: '/profile', label: 'Profile', icon: User },
               ].map(({ href, label, icon: Icon }) => (
-                <span key={href} className="text-muted-foreground flex items-center gap-1">
+                <span
+                  key={href}
+                  className="text-muted-foreground flex items-center gap-1"
+                >
                   <Icon className="size-3.5" />
                   {label}
                 </span>
