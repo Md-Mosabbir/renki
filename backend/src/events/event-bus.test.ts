@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { eventBus } from './event-bus.js';
 import type { DomainEvent } from './domain-event.js';
+import type { Observer } from './event-bus.js';
 
 const event: DomainEvent = {
   name: 'friend.requested',
@@ -19,25 +20,44 @@ describe('the event bus', () => {
    * Observer or just a function call with extra steps: a second listener runs
    * without any service being edited.
    */
-  it('runs every subscriber for an event', async () => {
-    const first = vi.fn();
-    const second = vi.fn();
-    eventBus.subscribe('friend.requested', first);
-    eventBus.subscribe('friend.requested', second);
+  it('notifies every registered observer', async () => {
+    const firstUpdate = vi.fn();
+    const secondUpdate = vi.fn();
+    const first: Observer = { update: firstUpdate };
+    const second: Observer = { update: secondUpdate };
+    eventBus.registerObserver(first);
+    eventBus.registerObserver(second);
 
     await eventBus.publish(event);
 
-    expect(first).toHaveBeenCalledOnce();
-    expect(second).toHaveBeenCalledOnce();
+    expect(firstUpdate).toHaveBeenCalledOnce();
+    expect(secondUpdate).toHaveBeenCalledOnce();
   });
 
-  it('does not run subscribers for a different event', async () => {
-    const other = vi.fn();
-    eventBus.subscribe('ride.matched', other);
+  it('stops notifying an observer after it unregisters', async () => {
+    const firstUpdate = vi.fn();
+    const secondUpdate = vi.fn();
+    const first: Observer = { update: firstUpdate };
+    const second: Observer = { update: secondUpdate };
+    eventBus.registerObserver(first);
+    eventBus.registerObserver(second);
+    eventBus.unregisterObserver(second);
 
     await eventBus.publish(event);
 
-    expect(other).not.toHaveBeenCalled();
+    expect(firstUpdate).toHaveBeenCalledOnce();
+    expect(secondUpdate).not.toHaveBeenCalled();
+  });
+
+  it('registers the same observer only once', async () => {
+    const update = vi.fn();
+    const observer: Observer = { update };
+    eventBus.registerObserver(observer);
+    eventBus.registerObserver(observer);
+
+    await eventBus.publish(event);
+
+    expect(update).toHaveBeenCalledOnce();
   });
 
   /**
@@ -45,23 +65,29 @@ describe('the event bus', () => {
    * created — a failed push must never roll back somebody's evening.
    */
   it('does not let a failing subscriber reject publish', async () => {
-    const boom = vi.fn().mockRejectedValue(new Error('push service is down'));
-    eventBus.subscribe('friend.requested', boom);
+    const update = vi.fn().mockRejectedValue(new Error('push service is down'));
+    const boom: Observer = {
+      update,
+    };
+    eventBus.registerObserver(boom);
 
     await expect(eventBus.publish(event)).resolves.toBeUndefined();
-    expect(boom).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledOnce();
   });
 
-  it('still runs later subscribers after an earlier one throws', async () => {
-    const boom = vi.fn().mockRejectedValue(new Error('down'));
-    const after = vi.fn();
-    eventBus.subscribe('friend.requested', boom);
-    eventBus.subscribe('friend.requested', after);
+  it('still runs later observers after an earlier one throws', async () => {
+    const afterUpdate = vi.fn();
+    const boom: Observer = {
+      update: vi.fn().mockRejectedValue(new Error('down')),
+    };
+    const after: Observer = { update: afterUpdate };
+    eventBus.registerObserver(boom);
+    eventBus.registerObserver(after);
 
     await eventBus.publish(event);
 
     // Otherwise one broken transport silently disables every other one.
-    expect(after).toHaveBeenCalledOnce();
+    expect(afterUpdate).toHaveBeenCalledOnce();
   });
 
   it('is a no-op when nobody is listening', async () => {
