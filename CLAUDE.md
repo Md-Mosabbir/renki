@@ -785,7 +785,7 @@ client that computes its own verdict can simply report the one it wants.
 Two suites, and the split is the point.
 
 ```bash
-npm test     -w @renki/backend     # unit: no database, ~300ms, runs everywhere
+npm test     -w @renki/backend     # unit: no database, ~1.4s, runs everywhere
 npm run test:int -w @renki/backend # integration: real Postgres, TRUNCATES everything
 ```
 
@@ -943,6 +943,39 @@ tells you nothing about production; an endpoint that accepted a target id would
 be a spam vector wearing a diagnostic label. It returns `delivered`, and a `0`
 means "no device is registered for you" — a different problem from a failed send
 and much the more common one.
+
+## Geocoding
+
+`backend/src/services/geocoding/` is an Adapter wrapped in two Proxies:
+`CachingGeocoder → RateLimitedGeocoder → NominatimAdapter`, assembled once in
+`index.ts` and exported as a single `geocoder`.
+
+**Which geocoder is live is decided in `index.ts` and nowhere else.** No
+`provider` parameter, no `if (provider === 'nominatim')` anywhere — that is the
+pattern lost. `MockGeocoder` is the no-network stand-in, the same role
+`InMemoryObjectStore` plays for `STORAGE_*`.
+
+**Nothing here may throw.** A geocoder turns a pin into a name, and
+`resolveDestination` computes the H3 cell from coordinates alone — so a dead
+geocoder must cost a student a _label_, never a _ride_. `reverse` answers `''`
+and `search` answers `[]`, including on a timeout or a non-2xx.
+
+**An address is at most TWO comma-separated parts.** `location.service.ts` and
+`candidate-query.ts` both split on the final comma, so a raw Nominatim
+`display_name` renders a swipe card as "27, Road 27, Dhanmondi, Dhaka, 1209"
+with "Bangladesh" as the area. `shortAddress` is what stops that.
+
+**`MIN_INTERVAL_MS` is 1100, not 1000.** Nominatim's policy floor is 1 req/sec
+and the extra 100 ms is clock jitter. The limit only really bites on the server:
+fifty students are fifty browser IPs, but one Render instance is one IP, and
+exceeding it gets the whole application banned. This is why the rate-limit unit
+test really sleeps — it is also why the unit suite is no longer ~300ms.
+
+**The stack is not wired into any request path yet.** `grep -rn geocoding
+backend/src` outside that folder returns nothing, and geocoding still happens in
+`frontend/lib/geo/nominatim.ts`. Connecting it is a separate change to
+`resolveDestination`, which is where the `address = NULL` → "Unnamed" bug gets
+fixed; the README says so and it needs an integration test.
 
 ## Architecture
 
