@@ -166,6 +166,26 @@ export default function FriendsPage() {
                       friend={item.friend}
                       note="Not confirmed yet"
                     >
+                      {/*
+                        Cancel sits beside Confirm because accepting used to be
+                        a one-way door: the only exits from 'awaiting_meetup'
+                        are `confirm` and `block`, so a student who changed
+                        their mind after tapping accept could either meet the
+                        person anyway or block them. "Not now" had to be said
+                        as "never".
+
+                        This is DELETE, not a transition. The row goes, so the
+                        pair is clean and either of them can ask again later,
+                        which is the honest meaning of changing your mind.
+                      */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={pendingId === item.id}
+                        onClick={() => void withdraw(item.id)}
+                      >
+                        Cancel
+                      </Button>
                       <Button asChild size="sm">
                         <Link href={`/friends/${item.id}/meetup`}>
                           <ScanLine className="size-4" />
