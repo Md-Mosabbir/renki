@@ -12,6 +12,7 @@ import { useSession } from '@/lib/use-session';
 import { api, ApiError, session } from '@/lib/api';
 import { canRide } from '@/lib/trust';
 import type { User } from '@/lib/api';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,13 +72,31 @@ export default function ProfilePage() {
       <Page>
         <div className="space-y-10 md:space-y-12">
           <section className="flex items-center gap-5">
-            {/* Initials rather than a photo: profilePictureUrl is often null,
-                and a broken image is a worse first impression than no image. */}
-            <div className="bg-foreground text-background grid size-16 shrink-0 place-items-center md:size-20">
-              <span className="font-display text-2xl md:text-3xl">
+            {/* The Google avatar, with initials behind it. `upsertFromGoogle`
+                refreshes `profile_picture_url` on every sign-in, so this is the
+                one field on the screen that is always current without anyone
+                editing it.
+
+                Radix swaps the fallback in by itself when the src is absent or
+                the image fails to load — which is what makes showing the photo
+                safe. This screen used to refuse to try, on the grounds that a
+                broken image is worse than no image; that is true, and it is the
+                component's job rather than a reason to render initials for
+                everyone.
+
+                Square, not round: the same block the wordmark and the code
+                plate are cut from, so `rounded-none` has to beat the base
+                classes on all three parts. */}
+            <Avatar className="size-16 rounded-none after:rounded-none md:size-20">
+              <AvatarImage
+                src={current.profilePictureUrl ?? undefined}
+                alt=""
+                className="rounded-none"
+              />
+              <AvatarFallback className="bg-foreground text-background font-display rounded-none text-2xl md:text-3xl">
                 {initials(current.name)}
-              </span>
-            </div>
+              </AvatarFallback>
+            </Avatar>
             <div className="min-w-0 space-y-1">
               <h1 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
                 {current.name}
