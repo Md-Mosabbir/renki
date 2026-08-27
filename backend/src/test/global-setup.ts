@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { execFile } from 'node:child_process';
+import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -22,7 +23,8 @@ export default async function setup(): Promise<void> {
     );
   }
 
-  const { stdout } = await run('npx', ['tsx', 'src/db/migrate.ts'], {
+  const tsxCli = resolve(process.cwd(), '../node_modules/tsx/dist/cli.mjs');
+  const { stdout } = await run(process.execPath, [tsxCli, 'src/db/migrate.ts'], {
     cwd: process.cwd(),
     env: process.env,
   });
