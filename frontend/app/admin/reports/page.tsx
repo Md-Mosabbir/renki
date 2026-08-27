@@ -258,10 +258,8 @@ function ReportRow({
             <strong className="text-foreground font-medium">
               Presenting differently from a declared gender is not fraud.
             </strong>{' '}
-            A trans or gender-nonconforming student may not look the way a reporter
-            expected, and that is not what this is for. The only question is whether
-            someone declared a gender they knew was false to be matched with people who
-            had chosen not to ride with them.
+            The only question is whether someone knowingly declared a false gender to be
+            matched with people who had chosen not to ride with them.
           </p>
           <Button
             size="sm"

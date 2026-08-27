@@ -113,16 +113,10 @@ export default function AdminChallengesPage() {
               <strong className="text-foreground font-medium">
                 Presenting differently from a declared gender is not fraud.
               </strong>{' '}
-              A trans or gender-nonconforming student may not look the way whoever
-              reported them expected. That is not what this is for, and suspending on it
-              would make Renki unusable for exactly the people the rule is meant to
-              protect.
-            </p>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              The only question is whether someone declared a gender they knew was false
-              in order to be matched with people who had chosen not to ride with them. If
-              you are unsure, clear it. A wrong suspension costs a student the app, and
-              the reporter can block them either way.
+              The only question is whether someone knowingly declared a false gender in
+              order to be matched with people who had chosen not to ride with them. If you
+              are unsure, clear it: a wrong suspension costs a student the app, and the
+              reporter can block them either way.
             </p>
             <p className="text-muted-foreground text-xs leading-relaxed">
               Photos are deleted the moment you decide, whichever way you go. Do not
