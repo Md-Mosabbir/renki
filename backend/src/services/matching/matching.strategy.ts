@@ -63,7 +63,7 @@ export interface MatchCandidate {
   destinationLocationId: string;
   destinationLabel: string;
   originLocationId: string;
-  /** The pick-up point they chose, e.g. "NSU Campus — North Gate". */
+  /** The pick-up point they chose, e.g. "NSU Gate 8". */
   originLabel: string;
   departureTime: Date;
   /** Straight-line kilometres between the two destinations. */
