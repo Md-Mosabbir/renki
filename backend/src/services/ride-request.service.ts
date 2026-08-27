@@ -605,7 +605,7 @@ async function createMatchedGroup(
        FROM locations orig WHERE orig.id = $1
      RETURNING id, origin_location_id, origin_kind, destination_location_id,
                departure_time, status, created_at, gender, formation,
-               created_by_user_id, capacity`,
+               created_by_user_id, capacity, started_at, completed_at, cancelled_at`,
     [
       mine.origin_location_id,
       mine.destination_location_id,

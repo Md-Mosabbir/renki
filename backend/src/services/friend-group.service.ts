@@ -31,7 +31,8 @@ export const MAX_GROUP_SIZE = 6;
 const GROUP_COLUMNS = `
   id, origin_location_id, origin_kind, destination_location_id,
   departure_time, status, created_at,
-  gender, formation, created_by_user_id, capacity
+  gender, formation, created_by_user_id, capacity,
+  started_at, completed_at, cancelled_at
 `;
 
 export interface FriendGroupInput {

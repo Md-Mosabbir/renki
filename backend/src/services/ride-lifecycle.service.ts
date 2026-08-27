@@ -45,7 +45,8 @@ export interface StartCode {
 const GROUP_COLUMNS = `
   id, origin_location_id, origin_kind, destination_location_id,
   departure_time, status, created_at,
-  gender, formation, created_by_user_id, capacity
+  gender, formation, created_by_user_id, capacity,
+  started_at, completed_at, cancelled_at
 `;
 
 /** Unambiguous alphabet: no O/0, no I/1. These get read off a screen by a camera. */
@@ -180,7 +181,7 @@ export async function redeemStartCode(
     const { rows: updated } = await client.query<RideGroupRow>(
       `UPDATE ride_groups SET status = 'active', started_at = now()
         WHERE id = $1
-       RETURNING ${GROUP_COLUMNS}, started_at, completed_at`,
+       RETURNING ${GROUP_COLUMNS}`,
       [group.id]
     );
 
@@ -228,7 +229,7 @@ export async function completeRide(
     const { rows: updated } = await client.query<RideGroupRow>(
       `UPDATE ride_groups SET status = 'completed', completed_at = now()
         WHERE id = $1
-       RETURNING ${GROUP_COLUMNS}, started_at, completed_at`,
+       RETURNING ${GROUP_COLUMNS}`,
       [groupId]
     );
 
@@ -288,7 +289,7 @@ export async function cancelRide(userId: string, groupId: string): Promise<Start
     const { rows: updated } = await client.query<RideGroupRow>(
       `UPDATE ride_groups SET status = 'cancelled', cancelled_at = now()
         WHERE id = $1
-       RETURNING ${GROUP_COLUMNS}, started_at, completed_at, cancelled_at`,
+       RETURNING ${GROUP_COLUMNS}`,
       [groupId]
     );
 
@@ -393,7 +394,7 @@ async function loadGroupForMember(
   lock = true
 ): Promise<RideGroupRow> {
   const { rows } = await client.query<RideGroupRow>(
-    `SELECT ${GROUP_COLUMNS}, started_at, completed_at
+    `SELECT ${GROUP_COLUMNS}
        FROM ride_groups WHERE id = $1 ${lock ? 'FOR UPDATE' : ''}`,
     [groupId]
   );
