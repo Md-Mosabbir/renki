@@ -125,6 +125,18 @@ export class ThrottledHandlerProxy {
  * one caller.
  */
 function identify(req: Request): string {
+  // TEMPORARY: measuring Render's proxy hop count. `trust proxy: 1` resolved
+  // req.ip to Render's internal router (10.28.x / 10.29.x, alternating), which
+  // rotated the key and defeated the limiter. Remove once the value is pinned.
+  console.log(
+    '[throttle-probe]',
+    JSON.stringify({
+      ip: req.ip,
+      ips: req.ips,
+      xff: req.headers['x-forwarded-for'],
+      socket: req.socket.remoteAddress,
+    })
+  );
   return req.user?.id ?? `ip:${req.ip ?? 'unknown'}`;
 }
 
