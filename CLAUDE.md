@@ -827,10 +827,17 @@ subscription until they install the PWA, and they still have to be able to open
 Renki and find out what they missed. A design where the push IS the notification
 loses the event for everyone who declined the permission.
 
-`backend/src/events/` is still a README — the bus, the subscribers and
-`GET /api/notifications` are Enamul's. The push side deliberately has **no
-dependency on it**, so it compiled and shipped first;
-`services/push-messages.ts` is the join, and the subscriber is four lines.
+**`backend/src/events/` is built, to Enamul's own spec.** The app was silent
+until it was: nothing published, and `sendToUsers` had exactly one caller in the
+codebase — the admin test button. The bus, both subscribers and
+`GET /api/notifications` follow that README verbatim — same filenames, same
+event names, same audience rules — so his implementation is a file replacement
+and every call site still compiles. His becomes the source of truth when it
+lands.
+
+The push side deliberately has **no dependency on the bus**, which is why it
+compiled and shipped before it existed; `services/push-messages.ts` is the join
+and `subscribers/push.subscriber.ts` is four lines.
 
 **Web Push with self-generated VAPID keys, which is why it costs nothing.** The
 endpoints belong to Google, Mozilla and Apple, and Renki holds an account with

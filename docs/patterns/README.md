@@ -1,17 +1,35 @@
 # Design patterns in Renki
 
-Six patterns, four people. Two are already in the codebase; four are to be
-written. Each one does a job the app genuinely needs — none of them were added
-to tick a box, and each guide starts by showing the real problem it solves.
+Six patterns, four people. Three are in the codebase; three are to be written.
+Each one does a job the app genuinely needs — none of them were added to tick a
+box, and each guide starts by showing the real problem it solves.
 
-| Pattern      | Owner    | Where the code goes                  | Guide                                                      |
-| ------------ | -------- | ------------------------------------ | ---------------------------------------------------------- |
-| Singleton ✅ | Mosabbir | `backend/src/db/pool.ts`             | already done                                               |
-| Strategy ✅  | Mosabbir | `backend/src/services/matching/`     | already done                                               |
-| **Observer** | Enamul   | `backend/src/events/`                | [guide](../../backend/src/events/README.md)                |
-| **Adapter**  | Shikder  | `backend/src/services/integrations/` | [guide](../../backend/src/services/integrations/README.md) |
-| **Proxy**    | Shikder  | `backend/src/services/geocoding/`    | [guide](../../backend/src/services/geocoding/README.md)    |
-| **Factory**  | Partho   | `backend/src/services/codes/`        | [guide](../../backend/src/services/codes/README.md)        |
+| Pattern         | Owner    | Where the code goes                  | Guide                                                         |
+| --------------- | -------- | ------------------------------------ | ------------------------------------------------------------- |
+| Singleton ✅    | Mosabbir | `backend/src/db/pool.ts`             | already done                                                  |
+| Strategy ✅     | Mosabbir | `backend/src/services/matching/`     | already done                                                  |
+| **Observer** ✅ | Enamul   | `backend/src/events/`                | [guide](../../backend/src/events/README.md) — built, see note |
+| **Adapter**     | Shikder  | `backend/src/services/integrations/` | [guide](../../backend/src/services/integrations/README.md)    |
+| **Proxy**       | Shikder  | `backend/src/services/geocoding/`    | [guide](../../backend/src/services/geocoding/README.md)       |
+| **Factory**     | Partho   | `backend/src/services/groups/`       | [guide](../../backend/src/services/groups/README.md)          |
+
+### Two entries changed after the table was first written
+
+**Observer is built.** The app was silent — a friend request, a match or a
+cancellation reached nobody — so the bus, both subscribers and
+`GET /api/notifications` were written to the guide's spec, verbatim: same
+filenames, same event names, same audience rules. Enamul's implementation is a
+file replacement and every call site still compiles, and his becomes the source
+of truth when it lands. The guide now ends with the four-line push subscriber
+that joins it to the transport.
+
+**Factory moved from `services/codes/` to `services/groups/`.** The original
+brief argued that verification codes need a carefully chosen alphabet because
+they are read off a screen by a camera. They are not read at all — codes are
+delivered only as a QR symbol, never rendered as text. Partho spotted that, and
+he was right. The replacement is a genuinely type-shaped problem: a ride group's
+construction rules depend on which KIND of ride it is, which the schema already
+says in four formation-conditional CHECK constraints.
 
 ## Before you write any code
 
