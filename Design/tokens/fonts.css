@@ -1,0 +1,4 @@
+/* Geist, Geist Mono and Instrument Serif are loaded from Google Fonts in the
+   product (next/font). No binaries ship with the app, so the design system
+   pulls the same three families from the Google CDN. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');

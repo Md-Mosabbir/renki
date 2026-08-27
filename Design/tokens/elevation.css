@@ -1,0 +1,15 @@
+/* ELEVATION
+   The product separates surfaces with hairlines, not shadows. The two soft
+   shadows are the character layer's only addition — reserved for things that
+   genuinely float over content (bottom sheets, the install banner, toasts).
+   Never on a card sitting in the page flow. */
+:root {
+  --hairline: 1px solid var(--border);
+  --hairline-strong: 1px solid var(--border-strong);
+  --ring-1: 0 0 0 1px oklch(0.145 0 0 / 10%);
+  --accent-rule: 2px solid var(--brand);   /* the left-border state marker */
+
+  --shadow-sheet: 0 -1px 0 0 var(--border), 0 -24px 48px -24px oklch(0.145 0 0 / 22%);
+  --shadow-float: 0 1px 2px oklch(0.145 0 0 / 6%), 0 8px 24px -12px oklch(0.145 0 0 / 18%);
+  --blur-nav: saturate(140%) blur(8px); /* @kind other */ /* bg-background/95 + backdrop-blur */
+}
