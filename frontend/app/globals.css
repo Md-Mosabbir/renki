@@ -33,6 +33,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -111,7 +112,8 @@
 
   /* Shadows & elevation */
   --shadow-sheet: 0 -1px 0 0 var(--border), 0 -24px 48px -24px oklch(0.145 0 0 / 22%);
-  --shadow-float: 0 1px 2px oklch(0.145 0 0 / 6%), 0 8px 24px -12px oklch(0.145 0 0 / 18%);
+  --shadow-float:
+    0 1px 2px oklch(0.145 0 0 / 6%), 0 8px 24px -12px oklch(0.145 0 0 / 18%);
   --blur-nav: saturate(140%) blur(8px);
 
   /* Fonts */
@@ -201,38 +203,94 @@
 
 /* Keyframe Animations */
 @keyframes mark-hop {
-  0% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-140%) rotate(180deg); }
-  100% { transform: translateY(0) rotate(360deg); }
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-140%) rotate(180deg);
+  }
+  100% {
+    transform: translateY(0) rotate(360deg);
+  }
 }
 @keyframes ring-expand {
-  0% { transform: scale(0.35) rotate(0deg); opacity: 0; }
-  12% { opacity: 0.55; }
-  100% { transform: scale(1.9) rotate(90deg); opacity: 0; }
+  0% {
+    transform: scale(0.35) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9) rotate(90deg);
+    opacity: 0;
+  }
 }
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes scan-sweep {
-  0% { top: 12%; opacity: 0; }
-  15%, 85% { opacity: 1; }
-  100% { top: 88%; opacity: 0; }
+  0% {
+    top: 12%;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 88%;
+    opacity: 0;
+  }
 }
 @keyframes skeleton-sheen {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
-.animate-mark-hop, .renki-mark-hop { animation: mark-hop 1.1s var(--ease-in-out-quart) infinite; }
-.animate-ring-expand, .renki-ring-expand { animation: ring-expand 2.6s var(--ease-out-quint) infinite; }
-.animate-rise-in, .renki-rise-in { animation: rise-in var(--dur-3) var(--ease-out-quint) both; }
-.animate-scan-sweep, .renki-scan-sweep { animation: scan-sweep 1.6s var(--ease-linear) infinite; }
+.animate-mark-hop,
+.renki-mark-hop {
+  animation: mark-hop 1.1s var(--ease-in-out-quart) infinite;
+}
+.animate-ring-expand,
+.renki-ring-expand {
+  animation: ring-expand 2.6s var(--ease-out-quint) infinite;
+}
+.animate-rise-in,
+.renki-rise-in {
+  animation: rise-in var(--dur-3) var(--ease-out-quint) both;
+}
+.animate-scan-sweep,
+.renki-scan-sweep {
+  animation: scan-sweep 1.6s var(--ease-linear) infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-mark-hop, .animate-ring-expand, .animate-rise-in, .animate-scan-sweep,
-  .renki-mark-hop, .renki-ring-expand, .renki-rise-in, .renki-scan-sweep { animation: none; }
-  .animate-ring-expand, .renki-ring-expand { opacity: 0.18; }
+  .animate-mark-hop,
+  .animate-ring-expand,
+  .animate-rise-in,
+  .animate-scan-sweep,
+  .renki-mark-hop,
+  .renki-ring-expand,
+  .renki-rise-in,
+  .renki-scan-sweep {
+    animation: none;
+  }
+  .animate-ring-expand,
+  .renki-ring-expand {
+    opacity: 0.18;
+  }
 }
 
 /* Renki Brand Typography Utilities */
@@ -251,4 +309,3 @@
   line-height: 1.05;
   letter-spacing: var(--tracking-tight);
 }
-
