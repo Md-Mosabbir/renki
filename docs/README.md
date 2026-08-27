@@ -42,6 +42,7 @@ non-obvious edge cases.
 | **Ride lifecycle**            | `forming → matched → active → completed`, why the scan starts a ride, and why cancelling spends both searches                | [ride-lifecycle.md](systems/ride-lifecycle.md)         |
 | **Reporting pipeline**        | Why reporting and blocking are two acts, the moderator queue, suspension and reinstatement                                   | [reporting-pipeline.md](systems/reporting-pipeline.md) |
 | **Notifications**             | The record vs the transport, Web Push with self-generated VAPID keys, and Apple's installed-PWA rule                         | [notifications.md](systems/notifications.md)           |
+| **Regression testing**        | What a regression test is, why both suites exist, and the write-it/break-it/watch-it-fail discipline                         | [regression-testing.md](systems/regression-testing.md) |
 
 ## Where else to look
 
@@ -72,8 +73,8 @@ npm run typecheck -w @renki/frontend
 npm run build     -w @renki/frontend
 ```
 
-**The two backend suites are split on purpose.** The unit suite must never touch
-a database — `vitest.config.ts` points `DATABASE_URL` at a deliberately
-unreachable host, so a test that starts depending on one fails loudly instead of
-quietly making the fast suite slow. Everything that has actually broken in this
-project was database-shaped, which is why `*.int.test.ts` exists.
+**The two backend suites are split on purpose**, and
+[systems/regression-testing.md](systems/regression-testing.md) explains why in
+full: the unit suite must never touch a database, everything that has actually
+broken in this project was database-shaped, and a regression test that has never
+been watched to fail is unproven.
