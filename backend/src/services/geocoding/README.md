@@ -2,6 +2,13 @@
 
 **Owner: Shikder. Both patterns, one folder, on purpose.**
 
+> **Status: built and merged.** Every file below exists and
+> `npm test -w @renki/backend` covers the three parts with no network. It is
+> still written in the second person because the code follows it step for step
+> — read it as the reasoning behind what is there. The one section not yet
+> done is **"Where it gets used"**: nothing outside this folder imports
+> `geocoder` yet, so the "Unnamed" cards described below are still there.
+
 They are easiest to tell apart when they sit next to each other wrapping the
 same interface, and your report needs that contrast:
 
