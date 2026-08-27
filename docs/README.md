@@ -43,6 +43,7 @@ non-obvious edge cases.
 | **Reporting pipeline**        | Why reporting and blocking are two acts, the moderator queue, suspension and reinstatement                                   | [reporting-pipeline.md](systems/reporting-pipeline.md) |
 | **Notifications**             | The record vs the transport, Web Push with self-generated VAPID keys, and Apple's installed-PWA rule                         | [notifications.md](systems/notifications.md)           |
 | **Regression testing**        | What a regression test is, why both suites exist, and the write-it/break-it/watch-it-fail discipline                         | [regression-testing.md](systems/regression-testing.md) |
+| **CI/CD**                     | Two workflows, platform auto-deploy, and the gated pipeline that went green while shipping nothing                           | [ci-cd.md](systems/ci-cd.md)                           |
 
 ## Where else to look
 
