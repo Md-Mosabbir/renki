@@ -95,18 +95,23 @@ export abstract class RideGroupFactory<TInput extends RideGroupHeader> {
  * ------------------------------------------------------------------ */
 
 /**
- * Every column either table needs, in one place. `started_at` and
- * `completed_at` are included even though a freshly created group has both
- * NULL — omitting columns here is exactly how the historical bug happened:
- * a column absent from a narrower SELECT elsewhere read back as `undefined`
- * and got reported to the client as `null` regardless of the row's real
- * value the next time it was read some other way.
+ * Every column either table needs, in one place. All three lifecycle stamps
+ * are included even though a freshly created group has them all NULL —
+ * omitting columns here is exactly how the historical bug happened: a column
+ * absent from a narrower SELECT read back as `undefined` and reached the
+ * client as a missing field rather than the row's real value.
+ *
+ * `cancelled_at` was the one left out when this list was first written, and
+ * the omission survived review because the test asserting "every column"
+ * checked only the two that were here. It is not currently load-bearing —
+ * nothing reads it off a freshly created row — and that is precisely why it
+ * has to be listed: the next reader of this constant will copy it.
  */
 const GROUP_COLUMNS = `
   id, origin_location_id, origin_kind, destination_location_id,
   departure_time, status, created_at,
   gender, formation, created_by_user_id, capacity,
-  started_at, completed_at
+  started_at, completed_at, cancelled_at
 `;
 
 interface InsertHeaderInput {

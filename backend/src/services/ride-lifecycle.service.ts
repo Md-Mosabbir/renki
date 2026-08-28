@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
-import { transaction } from '../db/pool.js';
+import { transaction } from '../db/database.singleton.js';
 import type { GroupMemberRow, RideGroupRow } from '../models/ride-group.model.js';
 import { HttpError } from '../utils/http-error.js';
 import { eventBus } from '../events/index.js';

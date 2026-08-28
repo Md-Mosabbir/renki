@@ -6,13 +6,16 @@ import {
   patchUserMe,
 } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { SIGN_IN, throttled } from '../middlewares/throttled.handler.proxy.js';
 
 const router = Router();
 
 // POST /api/auth/google/
 // body: { googleToken: string }
 // response: { token: string, user: User }
-router.post('/google', googleSignin);
+// Throttled: every call verifies a token against Google, so it costs a network
+// round trip and spends someone else's quota. Keyed by IP — no user exists yet.
+router.post('/google', throttled(SIGN_IN, googleSignin));
 // GET /api/auth/me
 // header: Authorization: Bearer <token>
 // response: { data: { user } }

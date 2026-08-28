@@ -83,13 +83,13 @@ Postgres, accessed through **raw SQL over `node-postgres`**. No ORM.
 
 ### One pool, no exceptions
 
-`src/db/pool.ts` owns the single `pg.Pool` for the process. Nothing else may
+`src/db/database.singleton.ts` owns the single `pg.Pool` for the process. Nothing else may
 construct a `Pool` or a `Client`. One pool means one place that owns connection
 limits and one place that gets closed on shutdown — two subsystems each opening
 their own pool is how you quietly exhaust Postgres' 100-connection default.
 
 ```ts
-import { query, transaction } from '../db/pool.js';
+import { query, transaction } from '../db/database.singleton.js';
 
 // Always parameterise. $1, $2… are sent separately from the SQL text.
 const { rows } = await query<Ride>('SELECT * FROM rides WHERE id = $1', [id]);
@@ -110,7 +110,7 @@ await transaction(async (client) => {
 
 ### Where database code belongs
 
-The MVC rule still holds: **controllers never import `db/pool.js`.** SQL lives at
+The MVC rule still holds: **controllers never import `db/database.singleton.js`.** SQL lives at
 the service layer (or in a `repositories/` layer underneath it, once there is
 enough of it to be worth separating). A controller that runs its own query is
 the thing that makes the business logic untestable without a live database.
@@ -151,7 +151,7 @@ backend/
 │   ├── middlewares/
 │   │   └── error.middleware.ts    # 404 handler + central error handler
 │   ├── db/
-│   │   └── pool.ts                # the ONE pg.Pool + query/transaction helpers
+│   │   └── database.singleton.ts  # the ONE pg.Pool + query/transaction helpers
 │   ├── utils/
 │   │   └── http-error.ts          # HttpError class for explicit status codes
 │   ├── app.ts                     # builds the Express app (does NOT listen)

@@ -13,6 +13,7 @@ import {
   postMeetupScan,
 } from '../controllers/friends.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { CODE_ISSUE, throttled } from '../middlewares/throttled.handler.proxy.js';
 
 const router = Router();
 
@@ -54,6 +55,6 @@ router.post('/meetups/scan', postMeetupScan);
 router.get('/:id', getFriendship);
 router.delete('/:id', deleteFriendship);
 router.post('/:id/respond', postFriendResponse);
-router.post('/:id/meetup', postMeetupCode);
+router.post('/:id/meetup', throttled(CODE_ISSUE, postMeetupCode));
 
 export default router;

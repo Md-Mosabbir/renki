@@ -10,6 +10,7 @@ import {
   postStartScan,
 } from '../controllers/groups.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { CODE_ISSUE, throttled } from '../middlewares/throttled.handler.proxy.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.post('/:id/respond', postGroupResponse);
 // matched --scan--> active --finish--> completed
 // POST /api/groups/:id/start-code   mint the code to display
 // POST /api/groups/:id/complete     end the ride
-router.post('/:id/start-code', postStartCode);
+router.post('/:id/start-code', throttled(CODE_ISSUE, postStartCode));
 router.post('/:id/complete', postComplete);
 // POST /api/groups/:id/cancel      call it off (forming, matched or active)
 router.post('/:id/cancel', postCancel);

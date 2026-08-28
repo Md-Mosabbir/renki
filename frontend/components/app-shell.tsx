@@ -78,6 +78,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           bottom nav. Five slots already divide a 375px screen into 75px
           columns; a sixth drops each below the 44px tap-target floor the rest
           of this file is careful about.
+
+          The wordmark lives here and NOWHERE else under `md`. Five pages used
+          to carry their own `md:hidden` header for it, which meant adding this
+          bar put two Renki wordmarks on top of each other — and meant Friends
+          and Groups, which never had one, showed no branding at all. One
+          source, same argument as NAV above.
         */}
         <div className="border-border flex items-center justify-between border-b px-4 py-2 md:hidden">
           <Wordmark />

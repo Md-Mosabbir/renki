@@ -1,7 +1,13 @@
 # Renki
 
-University ride-sharing platform. npm workspaces monorepo: `backend/` is an
-Express 5 + TypeScript API; `frontend/` is a Next.js 16 web client.
+University **carpooling** platform: Renki matches students going the same way so
+they can share one ride. It does NOT dispatch vehicles — there is no driver,
+fare, seat or payment in the schema, and `lib/rides/handoff.ts` opens a deep
+link into a ride-hailing app once a group is matched. "Ride sharing" names the
+thing Renki hands off to, so do not use it in copy.
+
+npm workspaces monorepo: `backend/` is an Express 5 + TypeScript API;
+`frontend/` is a Next.js 16 web client.
 
 ## Commands
 
@@ -57,7 +63,7 @@ with `moduleResolution: NodeNext`. `ERR_MODULE_NOT_FOUND` is almost always this.
 Raw SQL over `node-postgres`. **No ORM** — a deliberate team decision; don't
 propose Prisma/Drizzle/TypeORM.
 
-- `backend/src/db/pool.ts` owns the single `pg.Pool`, as an explicit
+- `backend/src/db/database.singleton.ts` owns the single `pg.Pool`, as an explicit
   **Singleton** (`Database.getInstance()`, private constructor). Never construct
   another `Pool` or `Client` anywhere.
 - Prefer the module-level `query()` / `transaction()` helpers over
@@ -785,7 +791,7 @@ client that computes its own verdict can simply report the one it wants.
 Two suites, and the split is the point.
 
 ```bash
-npm test     -w @renki/backend     # unit: no database, ~300ms, runs everywhere
+npm test     -w @renki/backend     # unit: no database, ~1.4s, runs everywhere
 npm run test:int -w @renki/backend # integration: real Postgres, TRUNCATES everything
 ```
 
@@ -895,7 +901,7 @@ lands.
 
 The push side deliberately has **no dependency on the bus**, which is why it
 compiled and shipped before it existed; `services/push-messages.ts` is the join
-and `subscribers/push.subscriber.ts` is four lines.
+and `observers/push.observer.ts` is four lines.
 
 **Web Push with self-generated VAPID keys, which is why it costs nothing.** The
 endpoints belong to Google, Mozilla and Apple, and Renki holds an account with
@@ -944,6 +950,53 @@ be a spam vector wearing a diagnostic label. It returns `delivered`, and a `0`
 means "no device is registered for you" — a different problem from a failed send
 and much the more common one.
 
+## Geocoding
+
+`backend/src/services/geocoding/` is an Adapter wrapped in two Proxies:
+`CachingGeocoderProxy → RateLimitedGeocoderProxy → NominatimAdapter`, assembled once in
+`index.ts` and exported as a single `geocoder`.
+
+**Which geocoder is live is decided in `index.ts` and nowhere else.** No
+`provider` parameter, no `if (provider === 'nominatim')` anywhere — that is the
+pattern lost. `MockGeocoder` is the no-network stand-in, the same role
+`InMemoryObjectStore` plays for `STORAGE_*`.
+
+**Nothing here may throw.** A geocoder turns a pin into a name, and
+`resolveDestination` computes the H3 cell from coordinates alone — so a dead
+geocoder must cost a student a _label_, never a _ride_. `reverse` answers `''`
+and `search` answers `[]`, including on a timeout or a non-2xx.
+
+**An address is at most TWO comma-separated parts.** `location.service.ts` and
+`candidate-query.ts` both split on the final comma, so a raw Nominatim
+`display_name` renders a swipe card as "27, Road 27, Dhanmondi, Dhaka, 1209"
+with "Bangladesh" as the area. `shortAddress` is what stops that.
+
+**`MIN_INTERVAL_MS` is 1100, not 1000.** Nominatim's policy floor is 1 req/sec
+and the extra 100 ms is clock jitter. The limit only really bites on the server:
+fifty students are fifty browser IPs, but one Render instance is one IP, and
+exceeding it gets the whole application banned. This is why the rate-limit unit
+test really sleeps — it is also why the unit suite is no longer ~300ms.
+
+**Rate limiting exists in two places and they are opposites.** `geocoding/
+rate-limited.geocoder.proxy.ts` limits calls we make OUTBOUND, is keyed by
+nothing, and DELAYS. `middlewares/throttled.handler.proxy.ts` limits calls made
+INBOUND, is keyed per caller, and REJECTS with 429 — queuing inbound holds every
+socket open under a flood, which turns the limiter into an amplifier. It wraps
+one named handler rather than sitting in the middleware chain, which is what
+makes it a Proxy and not Chain of Responsibility, and it needs
+`app.set('trust proxy', 3)`, MEASURED from a live probe — socket `::1`, then
+`XFF = client, Cloudflare, Render router`, so the caller is index 3. At `1`,
+`req.ip` was Render's own routers _alternating_ between two addresses, the key
+rotated, and 24 requests against a limit of 20 produced no 429 at all. Not
+`true`: that takes the leftmost XFF entry, which the client writes, so the
+limiter would be trivially bypassable. Re-measure if the edge ever changes.
+
+**The stack is not wired into any request path yet.** `grep -rn geocoding
+backend/src` outside that folder returns nothing, and geocoding still happens in
+`frontend/lib/geo/nominatim.ts`. Connecting it is a separate change to
+`resolveDestination`, which is where the `address = NULL` → "Unnamed" bug gets
+fixed; the README says so and it needs an integration test.
+
 ## Architecture
 
 MVC, strictly layered: **routes → controllers → services → models**. Each layer
@@ -952,7 +1005,7 @@ may only call the one below it.
 - Controllers are the only layer touching `req`/`res`.
 - Services must never import `Request`/`Response`; the controller extracts what's
   needed and passes plain arguments.
-- **Controllers never import `db/pool.js`.** SQL belongs in services (or a
+- **Controllers never import `db/database.singleton.js`.** SQL belongs in services (or a
   `repositories/` layer beneath them). This is what keeps logic testable without
   a live database.
 - `app.ts` builds the app and never listens; `server.ts` is the only file that
@@ -960,6 +1013,19 @@ may only call the one below it.
 
 Throw `HttpError(status, message)` to control status codes. Express 5 forwards
 async rejections to the error middleware, so no `try/catch` + `next(err)`.
+
+**A file that implements a design pattern names the pattern, last:**
+`<subject>.<pattern>.ts`. `db/database.singleton.ts`, `event-bus.subject.ts`,
+`observers/push.observer.ts`, `h3-proximity.strategy.ts`,
+`ride-group.factory.ts`, `nominatim.adapter.ts`,
+`caching.geocoder.proxy.ts`. The exceptions are the _target_ interfaces —
+`geocoding/geocoder.ts` and `groups/ride-group.types.ts` — because an Adapter
+translates INTO an interface that knows nothing about it, so putting `.adapter`
+on the interface would say the opposite of what the pattern means.
+
+The renames that established this were purely mechanical: same classes, same
+exports, same SQL, no behaviour touched. `docs/patterns/README.md` holds the
+full table and the reasoning.
 
 ## Environment
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import { makeUser, resetDb } from '../test/harness.js';
 import {
   deleteSubscription,

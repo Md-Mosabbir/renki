@@ -1,4 +1,4 @@
-import { query, transaction } from '../db/pool.js';
+import { query, transaction } from '../db/database.singleton.js';
 import type { TrustStage } from '../models/user.model.js';
 import { HttpError } from '../utils/http-error.js';
 import {

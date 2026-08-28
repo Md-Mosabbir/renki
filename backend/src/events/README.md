@@ -1,240 +1,147 @@
 # Observer — notifications
 
-**Owner: Enamul**
+**Owner: Enamul. Built and in production.**
 
-## The problem this solves
+This file described what to build until the pattern landed. It now describes
+what is here.
 
-Renki has never told anyone anything. Right now, the only way to discover that
-somebody swiped yes on you is to open the app and look at
-`GET /api/rides/incoming`. Your ride gets cancelled — you find out by opening
-the app. A friend request arrives — you find out by opening the app.
+## The problem it solves
 
-The naive fix is to paste "send a notification" into all nine places where
-something happens. Then every one of those services has to know about
-notifications, and when you later add email, you edit nine files again.
+Ten things happen in Renki that somebody else should hear about: a ride
+matches, a swipe arrives, a friend request is sent, a group fills up. The naive
+fix is to paste "send a notification" into all ten services. Then every one of
+them knows about notifications, and adding email later means editing ten files
+again.
 
-Observer inverts that. The services **announce** what happened and do not care
-who is listening. The notification writer **listens**. Adding email later means
-adding one listener and touching nothing else.
+Observer inverts that. The services **announce**; they do not know who is
+listening. Two observers listen. Adding email is one `registerObserver()` call
+and zero edits to any service.
 
-## What you are building
+## What is here
 
 ```
 backend/src/events/
-  domain-event.ts       the shape of an event, and the list of event types
-  event-bus.ts          the Observer itself: subscribe, publish
-  index.ts              re-exports, so callers import from one place
-  subscribers/
-    notification.subscriber.ts   turns events into rows in `notifications`
+  domain-event.ts               the event shape, the ten names, and EVENT_KIND
+  event-bus.subject.ts          Subject + Observer interfaces, and EventBus
+  index.ts                      re-exports + registerObservers()
+  observers/
+    notification.observer.ts    writes the `notifications` row
+    push.observer.ts            makes the phone buzz
+  event-bus.subject.test.ts     unit — the pattern's mechanics, no database
+  events.int.test.ts            integration — events reach the table
+  event-kinds.int.test.ts       integration — all ten do
 ```
 
-Plus a service and routes so a student can actually read them:
+Read back through `services/notification.service.ts` →
+`controllers/notifications.controller.ts` → `routes/notifications.routes.ts`,
+and rendered by `components/notifications/notification-bell.tsx`.
 
-```
-backend/src/services/notification.service.ts   the SQL
-backend/src/controllers/notifications.controller.ts
-backend/src/routes/notifications.routes.ts
-```
+## The pattern
 
-## Step 1 — the event shape
+`EventBus` implements `Subject`; both subscribers implement `Observer`.
+`registerObservers()` is called once from `app.ts` — never from `server.ts`,
+which only binds a port, and tests build the app without it. Registration is
+idempotent because the observers live in a `Set`.
 
-`backend/src/events/domain-event.ts`
+**A subscriber that throws must not break the thing that published.** If
+writing a notification fails, the ride must still have been created — the
+alternative is a failed push rolling back somebody's evening. Every observer is
+awaited in its own `try/catch`, failures are logged, and `publish` cannot
+reject.
 
-An event is a plain object saying what happened. It carries ids, never whole
-objects, and it never carries a `Request`.
+Sequential rather than `Promise.all`: with two observers there is nothing to
+gain, and it keeps the row written before the push that refers to it goes out.
+
+## The two halves are not the same thing
+
+|                 | What it is                                   | Survives a phone being off |
+| --------------- | -------------------------------------------- | -------------------------- |
+| `notifications` | the RECORD — what you see on opening the app | yes, it is a Postgres row  |
+| Web Push        | the TRANSPORT — the buzz                     | best effort                |
+
+**Both fire for every event, and that is deliberate.** A push reaches a device
+that is awake, or waits in Google's / Mozilla's / Apple's queue until its TTL
+expires (four weeks, the `web-push` default — we pass no `TTL` option).
+Everything that can go wrong in between loses the buzz and nothing else:
+permission declined, subscription revoked, our own server down at the moment of
+the send, or — most commonly — an iPhone that never installed the PWA, which
+Apple gives no push at all. The row is still there.
+
+A design where the push IS the notification loses the event for all of them.
+
+## The audience rule
+
+`audience` NEVER includes `actorId`. `chk_notifications_not_self` enforces it in
+the database, so a subscriber that loops over group members and forgets to skip
+the person who caused the event crashes rather than quietly telling somebody
+about their own action.
+
+`EVENT_KIND` maps each event name to a `notifications.kind`, and every value
+must exist in `chk_notifications_kind` (migration 26). A typo is a CHECK
+violation, not a row nobody renders. `event-kinds.int.test.ts` publishes all ten
+against a real database for exactly this reason — the other integration tests
+cover three.
+
+## Publishing
+
+Ten call sites, listed by `grep -rn "eventBus.publish" src/services`.
+
+**Publish AFTER the transaction commits, never inside it.** A notification about
+a ride that was rolled back is a lie, and the bus does not participate in the
+transaction anyway.
 
 ```ts
-export type DomainEventName =
-  | 'ride.matched'
-  | 'ride.swipeReceived'
-  | 'ride.started'
-  | 'ride.completed'
-  | 'ride.cancelled'
-  | 'friend.requested'
-  | 'friend.confirmed'
-  | 'group.invited'
-  | 'group.ready'
-  | 'report.filed';
+const result = await transaction(async (client) => { ... });
 
-export interface DomainEvent {
-  name: DomainEventName;
-  /** Who caused it. */
-  actorId: string;
-  /** Who should hear about it. Never includes actorId. */
-  audience: string[];
-  rideGroupId?: string;
-  friendshipId?: string;
-}
+// After the commit.
+await eventBus.publish({
+  name: 'ride.started',
+  actorId: userId,
+  audience: accepted(result.members, userId),
+  rideGroupId: result.group.id,
+});
 ```
 
-> The `audience` must never contain `actorId`. The database enforces this
-> (`chk_notifications_not_self`), so getting it wrong is a crash, not a silent
-> bug — that constraint is there specifically to catch a subscriber that loops
-> over group members and forgets to skip the person who triggered the event.
+**Publishing is conditional where repeating an action is not a new event.**
+`swipe` is the case that bit: swiping yes twice is idempotent and must not buzz
+the other rider twice. It reads the previous answer before the upsert and only
+publishes when it actually changed — the request rows are already locked in
+canonical order, so nothing can move underneath that read. `events.int.test.ts`
+asserts it.
 
-## Step 2 — the bus (this is the pattern)
+A decline publishes nothing, deliberately: being told somebody looked at your
+card and said no is a feature nobody asked for.
 
-`backend/src/events/event-bus.ts`
+## Push copy
 
-```ts
-import type { DomainEvent, DomainEventName } from './domain-event.js';
+`services/push.service.ts` and `services/push-messages.ts` have **no import from
+this directory**, which is why they shipped and were tested before the bus
+existed. `push.observer.ts` is the join, and it is short.
 
-export type Subscriber = (event: DomainEvent) => Promise<void> | void;
+`messageFor` covers all ten kinds and its rules are asserted in
+`push-messages.test.ts` — **first names only, never a meetup or ride-start
+code, and a cancellation may never share a `tag` with a live ride**, because
+`tag` collapses notifications on the device and newest-replaces-oldest is how
+somebody turns up to a ride that was called off. Read that test before changing
+any wording.
 
-class EventBus {
-  private subscribers = new Map<DomainEventName, Subscriber[]>();
-
-  subscribe(name: DomainEventName, subscriber: Subscriber): void {
-    // add to the list for that name
-  }
-
-  async publish(event: DomainEvent): Promise<void> {
-    // call every subscriber for event.name
-  }
-}
-
-export const eventBus = new EventBus();
-```
-
-**The one rule that matters here:** a subscriber that throws must not break the
-thing that published the event. If writing a notification fails, the ride must
-still have been created. Wrap each subscriber call in a `try/catch` inside
-`publish` and log the failure. Getting this wrong means a failed notification
-rolls back somebody's ride.
-
-## Step 3 — the subscriber
-
-`backend/src/events/subscribers/notification.subscriber.ts`
-
-One function per event name, or one function that switches on `event.name`.
-Each one inserts a row per person in `audience`. Map events to the `kind` column
-like this:
-
-| Event                | `notifications.kind` |
-| -------------------- | -------------------- |
-| `ride.matched`       | `ride_matched`       |
-| `ride.swipeReceived` | `swipe_received`     |
-| `ride.started`       | `ride_started`       |
-| `ride.completed`     | `ride_completed`     |
-| `ride.cancelled`     | `ride_cancelled`     |
-| `friend.requested`   | `friend_request`     |
-| `friend.confirmed`   | `friend_confirmed`   |
-| `group.invited`      | `group_invite`       |
-| `group.ready`        | `group_ready`        |
-| `report.filed`       | `report_filed`       |
-
-`kind` has a CHECK constraint, so a typo is a crash rather than a row nobody
-renders. The table is `migrations/26_notifications.sql` — read it, the comments
-explain every column.
-
-Register the subscriber once, at startup. `backend/src/app.ts` is the right
-place — **not** `server.ts`, which only binds a port.
-
-## Step 4 — where to publish from
-
-These are the call sites. Each one already exists; you are adding one
-`await eventBus.publish({...})` line near the end of it, after the work has
-succeeded.
-
-| File                                 | Function               | Event                | Audience                               |
-| ------------------------------------ | ---------------------- | -------------------- | -------------------------------------- |
-| `services/ride-request.service.ts`   | `createMatchedGroup`   | `ride.matched`       | both riders                            |
-| `services/ride-request.service.ts`   | `swipe`                | `ride.swipeReceived` | the other rider, on the **first** yes  |
-| `services/ride-lifecycle.service.ts` | `redeemStartCode`      | `ride.started`       | all accepted members                   |
-| `services/ride-lifecycle.service.ts` | `completeRide`         | `ride.completed`     | all accepted members                   |
-| `services/ride-lifecycle.service.ts` | `cancelRide`           | `ride.cancelled`     | all accepted members                   |
-| `services/friendship.service.ts`     | `requestFriendship`    | `friend.requested`   | the addressee                          |
-| `services/friendship.service.ts`     | `redeemMeetupCode`     | `friend.confirmed`   | the other party                        |
-| `services/friend-group.service.ts`   | `createFriendGroup`    | `group.invited`      | every invitee                          |
-| `services/friend-group.service.ts`   | `respondToGroupInvite` | `group.ready`        | all members, when the last one accepts |
-| `services/report.service.ts`         | `createReport`         | `report.filed`       | every user with `is_admin = true`      |
-
-**Publish after the transaction commits, not inside it.** If you publish inside
-the `transaction(...)` callback and the transaction then rolls back, you have
-told six people about a ride that does not exist. Do the work, let the
-transaction finish, then publish.
-
-## Step 5 — let people read them
-
-`backend/src/services/notification.service.ts`
-
-- `listNotifications(userId)` — newest first, limit 50
-- `countUnread(userId)` — for the badge
-- `markRead(userId, notificationId)` — `WHERE user_id = $1` as well as the id, or
-  one student can mark another's notification read
-- `markAllRead(userId)`
-
-Then a controller and routes: `GET /api/notifications`,
-`POST /api/notifications/:id/read`, `POST /api/notifications/read-all`.
-Mount in `routes/index.ts` behind `requireAuth`.
-
-Copy the shape of `routes/reports.routes.ts` — it is the smallest example in
-the repo.
-
-## How to check it works
-
-```bash
-npm run dev -w @renki/backend
-
-# two students, in two terminals
-TOKEN_A=$(curl -s -X POST localhost:4000/api/dev/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"rafiul.islam@northsouth.edu"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4)
-
-# do something that fires an event — send a friend request — then:
-curl localhost:4000/api/notifications -H "Authorization: Bearer $TOKEN_A"
-```
-
-And directly in the database:
-
-```bash
-psql "$DATABASE_URL" -c "SELECT kind, user_id, actor_user_id, created_at FROM notifications ORDER BY created_at DESC LIMIT 10;"
-```
-
-**The test that proves it is Observer and not just a function call:** add a
-second subscriber that only does `console.log`, register it alongside the first,
-and confirm both run when one event is published — without changing any of the
-ten services. If you had to edit a service to add the second listener, it is not
-Observer yet.
+`sendToUsers` never throws and prunes dead subscriptions itself. Push is
+optional: unset VAPID keys make sends a no-op and subscribing answer 503.
 
 ## Traps
 
-- **Do not publish inside a transaction.** See Step 4.
-- **Do not let a subscriber failure propagate.** See Step 2.
+- **Do not publish inside a transaction.**
+- **Do not let a subscriber failure propagate.**
 - **Do not put the actor in the audience.** The database will reject it.
-- **Do not import anything from `controllers/`.** Services and events sit below
-  controllers; the arrow only points one way.
+- **Do not import from `controllers/`.** The arrow points one way.
 - Remember the `.js` extension on every relative import.
 
----
+## Checking it works
 
-## Push notifications are already wired — you just publish
-
-The transport landed ahead of this bus, so a phone can already buzz. What is
-missing is the thing that decides _when_, which is what you are building.
-
-`services/push.service.ts` and `services/push-messages.ts` are done, tested and
-have **no dependency on this bus** — deliberately, so they compiled before it
-existed. Your subscriber is the join:
-
-```ts
-// events/subscribers/push.subscriber.ts
-import { sendToUsers } from '../../services/push.service.js';
-import { messageFor } from '../../services/push-messages.js';
-
-// The same event -> kind table you use for the `notifications` row.
-await sendToUsers(event.audience, messageFor(kind, actorName));
+```bash
+npm test        -w @renki/backend   # event-bus.test.ts, no database
+npm run test:int -w @renki/backend  # events.int.test.ts, event-kinds.int.test.ts
 ```
 
-`messageFor` already covers all ten kinds and its copy rules are asserted in
-`push-messages.test.ts` — first names only, no codes, and a cancellation may not
-share a `tag` with a live ride. Read that test before changing any wording.
-
-**`sendToUsers` never throws**, which is the contract Step 2 asks of every
-subscriber. It also prunes dead subscriptions itself, so you do not need to
-think about expiry.
-
-**Notifications and push are two different things and both should happen.** The
-row in `notifications` is the record a student sees when they open the app; the
-push is the buzz that tells them to. Someone with no push subscription — most
-iPhone users, until they install the PWA — must still get the row.
+By hand: sign in as two students, send a friend request, then open the bell in
+the app shell. The row is there whether or not a push arrived.

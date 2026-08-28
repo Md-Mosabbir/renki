@@ -300,7 +300,7 @@ export interface DeckCard {
   destinationLocationId: string;
   destinationLabel: string;
   originLocationId: string;
-  /** The gate they will be waiting at, e.g. "NSU Campus — North Gate". */
+  /** The pickup point they will be waiting at, e.g. "NSU Gate 8". */
   originLabel: string;
   departureTime: string;
   /** Kilometres between the two destinations. Both rides leave from campus. */

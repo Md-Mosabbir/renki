@@ -94,7 +94,10 @@ export function GroupCard({
           </p>
         </div>
 
-        <Badge variant={group.status === 'matched' ? 'default' : 'secondary'}>
+        <Badge
+          variant={group.status === 'matched' ? 'default' : 'secondary'}
+          live={group.status === 'matched'}
+        >
           {STATUS_LABEL[group.status] ?? group.status}
         </Badge>
       </header>

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
-import { query, transaction } from '../db/pool.js';
+import { query, transaction } from '../db/database.singleton.js';
 import type {
   FriendshipAction,
   FriendshipRow,
@@ -21,7 +21,7 @@ import { eventBus } from '../events/index.js';
 /**
  * SERVICE — every statement touching `friendships` and `friend_meetups`.
  *
- * Controllers never import `db/pool.js` (CLAUDE.md), so the rules below are
+ * Controllers never import `db/database.singleton.js` (CLAUDE.md), so the rules below are
  * testable without a live Postgres above this line and enforced in exactly one
  * place below it. Every statement is parameterised; nothing is concatenated.
  *

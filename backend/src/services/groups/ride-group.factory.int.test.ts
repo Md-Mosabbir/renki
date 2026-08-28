@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { query } from '../../db/pool.js';
-import { transaction } from '../../db/pool.js';
+import { query } from '../../db/database.singleton.js';
+import { transaction } from '../../db/database.singleton.js';
 import { makeCampus, makeLocation, makeUser, resetDb, soon } from '../../test/harness.js';
 import { FriendsGroupFactory } from './friends-group.factory.js';
 import { StrangerMatchFactory } from './stranger-match.factory.js';
@@ -175,14 +175,22 @@ describe('RideGroupFactory', () => {
       })
     );
 
-    // Freshly created, so both are NULL — the point is the key EXISTS on the
-    // returned row rather than being absent, which is what "every column"
-    // means here.
-    expect('started_at' in friendsGroup).toBe(true);
-    expect('completed_at' in friendsGroup).toBe(true);
-    expect(friendsGroup.started_at).toBeNull();
-    expect('started_at' in matchedGroup).toBe(true);
-    expect('completed_at' in matchedGroup).toBe(true);
-    expect(matchedGroup.started_at).toBeNull();
+    // Freshly created, so all three are NULL — the point is that the key
+    // EXISTS on the returned row rather than being absent, which is what
+    // "every column" means here. A missing key reaches the client as a
+    // dropped field; a NULL one reaches it as null.
+    //
+    // Driven off the constant rather than written out, because the first
+    // version of this test named `started_at` and `completed_at` by hand and
+    // therefore passed while GROUP_COLUMNS was missing `cancelled_at` — a
+    // test called "every column" that checked two of three.
+    const LIFECYCLE_COLUMNS = ['started_at', 'completed_at', 'cancelled_at'] as const;
+
+    for (const group of [friendsGroup, matchedGroup]) {
+      for (const column of LIFECYCLE_COLUMNS) {
+        expect(column in group).toBe(true);
+        expect((group as unknown as Record<string, unknown>)[column]).toBeNull();
+      }
+    }
   });
 });

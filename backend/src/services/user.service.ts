@@ -1,4 +1,4 @@
-import { query } from '../db/pool.js';
+import { query } from '../db/database.singleton.js';
 import type {
   GoogleProfile,
   ProfileInput,
@@ -10,7 +10,7 @@ import { HttpError } from '../utils/http-error.js';
 /**
  * SERVICE — every statement that touches `users` lives here and nowhere else.
  *
- * Controllers never import `db/pool.js` (see CLAUDE.md): keeping the SQL behind
+ * Controllers never import `db/database.singleton.js` (see CLAUDE.md): keeping the SQL behind
  * these functions is what lets the layers above be tested without a live
  * Postgres, and what makes lifting this into `repositories/` later a move
  * rather than a rewrite.

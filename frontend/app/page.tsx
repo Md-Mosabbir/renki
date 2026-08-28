@@ -108,7 +108,7 @@ export default function SignInPage() {
               <span className="text-brand">from campus.</span>
             </h1>
             <p className="text-muted-foreground max-w-xs text-base leading-relaxed">
-              Ride sharing for North South University. Verified students only.
+              Carpooling for North South University. Verified students only.
             </p>
           </div>
 

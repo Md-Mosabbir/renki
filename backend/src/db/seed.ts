@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { env } from '../config/env.js';
-import { closePool, transaction } from './pool.js';
+import { closePool, transaction } from './database.singleton.js';
 
 /**
  * Development fixture loader.
