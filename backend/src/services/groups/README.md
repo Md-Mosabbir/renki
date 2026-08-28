@@ -52,14 +52,16 @@ backend/src/services/groups/
   ride-group.factory.ts        abstract creator — owns the sequence
   friends-group.factory.ts     concrete creator
   stranger-match.factory.ts    concrete creator
+  ride-group.product.ts        the Product interface + both concrete products
   ride-group.types.ts          MemberSpec, RideGroupHeader, CreatedRideGroup
   index.ts                     one import site
   ride-group.factory.int.test.ts
+  ride-group.product.test.ts
 ```
 
 `RideGroupFactory.create()` owns the invariant sequence — insert the header,
 insert the members, read both back — and **has no `if` in it**. What differs
-between kinds is answered by five protected methods that each concrete creator
+between kinds is answered by seven protected methods that each concrete creator
 implements once:
 
 ```ts
@@ -69,11 +71,59 @@ protected abstract capacity(input: TInput): number;
 protected abstract createdBy(input: TInput): string | null;
 protected abstract members(input: TInput): MemberSpec[];
 protected abstract assertOriginAllowed(input: TInput): void;
+protected abstract wrapProduct(created: CreatedRideGroup): RideGroupProduct;
 ```
 
 **There is no `kind` string read anywhere.** `TInput` is fixed by which concrete
 class the caller instantiates, which is what makes this a Factory Method rather
 than a switch wearing a costume.
+
+## The Product half
+
+The six methods above all answer questions with _data_ — a string, a number, a
+list of members. None of them is a behaviour that differs per kind, so the
+hierarchy had a Creator and no Product: `create()` returned the same
+`CreatedRideGroup` shape either way, and the only thing that varied was what was
+in it.
+
+`ride-group.product.ts` adds the missing role:
+
+```ts
+export interface RideGroupProduct {
+  readonly created: CreatedRideGroup;
+  /** A one-line, kind-specific summary — e.g. for a push notification or a log line. */
+  describe(): string;
+}
+```
+
+`FriendsGroupProduct` and `StrangerMatchProduct` implement it, and `describe()`
+is genuinely different in each — not one implementation with an `if` on
+formation. `wrapProduct()` on each concrete creator returns its own, and
+`createProduct()` on the abstract creator calls `create()` and hands the result
+to whichever `wrapProduct()` the runtime type resolves to.
+
+**Why `RideGroupProduct` is separate from `CreatedRideGroup`.** The latter is a
+plain data shape, in `ride-group.types.ts`, and both kinds already share it —
+`toPublicRideGroup` uniformly turns either kind's data into an API response and
+must go on doing so. The Product is the _behavioural_ wrapper around that data.
+Merging the two would put a method on the row shape that four member queries
+read.
+
+**Be honest about its status when you explain it.** `createProduct()` and
+`describe()` have **no production caller** — `grep -rn createProduct backend/src`
+returns only the factory folder itself. They were added alongside `create()`
+rather than replacing it, deliberately: `create()` is the tested path both real
+callers use, and changing it to return a wrapper would have rippled into
+`friend-group.service.ts`, `ride-request.service.ts` and every screen reading
+`toPublicRideGroup`, for no behaviour anyone asked for. So this is a real
+polymorphic hierarchy with a real unit test and, as of today, no reader. The
+first honest use is a log line or a push message that wants a one-line summary
+without asking which kind of ride it has.
+
+The naming follows the convention in
+[`docs/patterns/README.md`](../../../../docs/patterns/README.md): `.product.ts`
+names the _role_ the pattern gives the file, the same way `event-bus.subject.ts`
+and `push.observer.ts` do for Observer.
 
 ## It is the only writer
 
@@ -151,10 +201,19 @@ export class DriverOfferedFactory extends RideGroupFactory<DriverOfferedInput> {
       },
     ];
   }
+  protected wrapProduct(created: CreatedRideGroup) {
+    return new DriverOfferedProduct(created);
+  }
 }
 ```
 
 No service touched, no caller touched, no existing factory touched.
+
+A third kind now also needs its own `RideGroupProduct` implementation, because
+`wrapProduct()` is abstract. That is the point of making it abstract rather than
+giving the base class a default: a default would let a new kind silently
+describe itself as a generic ride, which is the failure the Product role exists
+to prevent.
 
 **The honest limit:** a new formation still needs a migration to widen
 `chk_ride_groups_formation`, and probably its own CHECK. The factory does not
@@ -168,10 +227,28 @@ remove that. What it removes is the code change being spread across three files.
   `events/README.md`.
 - **Do not accept a `kind` parameter.** That is a switch wearing a costume.
 - **Do not add a fourth copy of the column list.** Three already drifted once.
+- **Do not put an `if` on formation inside `describe()`.** One method branching
+  on which kind it is, is exactly what the two Product classes replace. If a new
+  kind needs different words, it needs its own class.
+- **Do not quietly switch the two real callers over to `createProduct()`.** They
+  use `create()` and want the data shape; moving them buys nothing and ripples
+  into `toPublicRideGroup`.
 - Remember the `.js` extension on every relative import.
 
 ## Checking it works
 
 ```bash
+# integration — needs Postgres, TRUNCATES every table
 npm run test:int -w @renki/backend   # ride-group.factory.int.test.ts, 5 tests
+
+# unit — no database, runs anywhere
+npm test -w @renki/backend           # ride-group.product.test.ts, 2 tests
 ```
+
+The Product tests are in the **unit** suite deliberately. They construct a
+`CreatedRideGroup` by hand and assert that two classes given identical input
+produce different text — that is a statement about the class hierarchy, and
+proving it does not need a row in Postgres. The Creator tests stay in the
+integration suite for the opposite reason: what they assert is that four
+formation-conditional CHECK constraints accept what the factory builds, and only
+a real planner can answer that.

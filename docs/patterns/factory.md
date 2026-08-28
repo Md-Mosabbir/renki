@@ -47,9 +47,10 @@ An abstract creator owns the invariant sequence; concrete subclasses answer only
 what differs.
 
 ```
-RideGroupFactory<TInput>            ← abstract; owns create()
-  ├── FriendsGroupFactory           ← formation 'friends',  status 'forming'
-  └── StrangerMatchFactory          ← formation 'matched',  status 'matched'
+CREATOR                               PRODUCT
+RideGroupFactory<TInput>              RideGroupProduct
+  ├── FriendsGroupFactory      ────►    ├── FriendsGroupProduct
+  └── StrangerMatchFactory     ────►    └── StrangerMatchProduct
 ```
 
 The sequence is identical for a two-stranger match and a six-friend group:
@@ -90,6 +91,7 @@ export abstract class RideGroupFactory<TInput extends RideGroupHeader> {
   protected abstract createdBy(input: TInput): string | null;
   protected abstract members(input: TInput): MemberSpec[];
   protected abstract assertOriginAllowed(input: TInput): void;
+  protected abstract wrapProduct(created: CreatedRideGroup): RideGroupProduct;
 }
 ```
 
@@ -101,6 +103,7 @@ export abstract class RideGroupFactory<TInput extends RideGroupHeader> {
 | `createdBy()`           | the creator's id                   | `null`                       |
 | `members()`             | creator accepted, invitees pending | both accepted                |
 | `assertOriginAllowed()` | any origin — exempt                | must be `'campus'`, else 400 |
+| `wrapProduct()`         | `FriendsGroupProduct`              | `StrangerMatchProduct`       |
 
 `insertHeader`, `insertMembers` and `loadGroupMembers` are **module-private**.
 A concrete subclass answers questions about _its_ kind of group; it never
@@ -114,6 +117,55 @@ the size, resolved origin and destination, computed the group's gender, run
 `assertEveryPairIsFriends`, and checked every member's trust stage. A factory
 decides _how_ a group is built, never _who_ may be in it — putting the clique
 check behind a swappable class would mean a class could switch it off.
+
+## The Product
+
+The six methods above answer questions with **data** — a string, a number, a
+list of members. Not one of them is a _behaviour_ that differs per kind, so for
+a while this hierarchy had a Creator and no Product at all: `create()` returned
+the same `CreatedRideGroup` either way, and only its contents varied.
+
+`ride-group.product.ts` supplies the missing role.
+
+```ts
+export interface RideGroupProduct {
+  readonly created: CreatedRideGroup;
+  describe(): string;
+}
+```
+
+Two implementations, and `describe()` genuinely differs — a friends group counts
+who has joined against capacity and names the organiser; a stranger match is
+always exactly two riders and names the campus gate they leave from. Given the
+identical `CreatedRideGroup`, they return different text. That is the property
+the unit test pins.
+
+`createProduct()` on the abstract creator is the polymorphic entry point: it
+calls `create()` — the real template method — and hands the result to whichever
+`wrapProduct()` the runtime type resolves to. No `if`, no `kind` string, same as
+the rest of the file.
+
+**Kept separate from `CreatedRideGroup`, on purpose.** That type is a plain data
+shape both kinds already share, and `toPublicRideGroup` uniformly turns either
+kind's data into an API response — four member queries feed it. The Product is a
+behavioural wrapper _around_ that data; merging them would hang a method off the
+row shape those queries return.
+
+**Its status, stated plainly: nothing calls it yet.** `createProduct()` and
+`describe()` have no production caller —
+`grep -rn "createProduct" backend/src` returns only the `groups/` folder itself.
+It was added **alongside** `create()` rather than replacing it, because
+`create()` is the path both real callers use and the path the integration tests
+cover; switching them to return a wrapper would ripple into
+`friend-group.service.ts`, `ride-request.service.ts` and every screen reading
+`toPublicRideGroup`, in exchange for no behaviour anyone asked for. So this is a
+real polymorphic hierarchy, with a real test, and no reader today. The first
+honest use is a log line or a push message that wants a one-line summary without
+first asking which kind of ride it is holding.
+
+This is the same shape as the geocoding stack, which is assembled, tested and
+[not yet wired into any request path](../../backend/src/services/geocoding/README.md)
+— a pattern landing on its own, ahead of the change that consumes it.
 
 ## Where it's used
 
@@ -161,6 +213,9 @@ start at campus` — a message a human wrote, before the INSERT, instead of a
 ```bash
 # from the repo root — needs Postgres, and TRUNCATES every table
 npm run test:int -w @renki/backend -- ride-group.factory
+
+# the Product tests need no database
+npm test -w @renki/backend -- ride-group.product
 ```
 
 [`ride-group.factory.int.test.ts`](../../backend/src/services/groups/ride-group.factory.int.test.ts) — 5 integration tests:
@@ -175,3 +230,17 @@ The last test is the regression test for the original bug, and it was
 strengthened after the fact: it now loops over `['started_at', 'completed_at',
 'cancelled_at']` rather than checking two of the three, because `cancelled_at`
 was the one missing from `GROUP_COLUMNS` and the original test passed anyway.
+
+[`ride-group.product.test.ts`](../../backend/src/services/groups/ride-group.product.test.ts) — 2 unit tests:
+
+- Given one identical `CreatedRideGroup`, the two products describe themselves
+  differently — which is what proves `describe()` is not shared behaviour with a
+  branch inside it
+- Both satisfy `RideGroupProduct` and are interchangeable through it
+
+**Unit, not integration, and the split is the same argument the rest of the repo
+makes.** These construct a `CreatedRideGroup` by hand and assert a property of
+the class hierarchy; a row in Postgres would add nothing. The Creator tests are
+integration for the opposite reason — what they assert is that four
+formation-conditional CHECK constraints accept what the factory builds, and only
+a real planner can answer that.
