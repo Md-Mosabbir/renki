@@ -34,6 +34,7 @@ comes last:**
 | `events/event-bus.subject.ts`         | the event bus, as the Subject     |
 | `events/observers/push.observer.ts`   | push, as an Observer              |
 | `groups/ride-group.factory.ts`        | ride groups, as a Factory         |
+| `groups/ride-group.product.ts`        | ride groups, as the Product       |
 | `geocoding/nominatim.adapter.ts`      | Nominatim, as an Adapter          |
 | `geocoding/caching.geocoder.proxy.ts` | a caching geocoder, as a Proxy    |
 
@@ -69,14 +70,14 @@ half the faculty's own Java examples lean on — `PoundToKgAdapter`,
 `ProxyDocument` beside `RealDocument`, an `Observer` and a `Subject` interface
 named exactly that.
 
-| Pattern   | In Renki                                                                              |
-| --------- | ------------------------------------------------------------------------------------- |
-| Singleton | `Database` — `getInstance()`, private constructor                                     |
-| Strategy  | `MatchingStrategy`, `H3ProximityStrategy`, `ExactDestinationStrategy`                 |
-| Observer  | `Observer` + `Subject` interfaces; `EventBus`, `PushObserver`, `NotificationObserver` |
-| Factory   | `RideGroupFactory`, `FriendsGroupFactory`, `StrangerMatchFactory`                     |
-| Adapter   | `NominatimAdapter`                                                                    |
-| Proxy     | `CachingGeocoderProxy`, `RateLimitedGeocoderProxy`                                    |
+| Pattern   | In Renki                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Singleton | `Database` — `getInstance()`, private constructor                                                                                    |
+| Strategy  | `MatchingStrategy`, `H3ProximityStrategy`, `ExactDestinationStrategy`                                                                |
+| Observer  | `Observer` + `Subject` interfaces; `EventBus`, `PushObserver`, `NotificationObserver`                                                |
+| Factory   | `RideGroupFactory`, `FriendsGroupFactory`, `StrangerMatchFactory`; `RideGroupProduct`, `FriendsGroupProduct`, `StrangerMatchProduct` |
+| Adapter   | `NominatimAdapter`                                                                                                                   |
+| Proxy     | `CachingGeocoderProxy`, `RateLimitedGeocoderProxy`                                                                                   |
 
 The two Proxy classes are the ones this changed: they were `CachingGeocoder` and
 `RateLimitedGeocoder`, so the folder said Proxy and the class did not. That is
@@ -102,6 +103,15 @@ reach the table with a kind `chk_notifications_kind` accepts.
 `grep -rn "INSERT INTO ride_groups" backend/src` returns exactly one hit, inside
 the factory. Both creation paths — `createFriendGroup` and `createMatchedGroup`
 — go through it, and `create()` contains no `if` and reads no `kind` string.
+
+**It gained its Product half afterwards.** As first merged the hierarchy had a
+Creator and no Product: the six protected methods all answer with _data_, so
+nothing about a built group actually behaved differently per kind.
+`ride-group.product.ts` adds `RideGroupProduct` with two implementations whose
+`describe()` genuinely differs, plus `wrapProduct()` / `createProduct()` on the
+creators. Added **alongside** `create()`, never replacing it — and worth saying
+out loud when presenting it, because it is true of the geocoding stack too:
+`createProduct()` has no production caller yet.
 
 **Adapter and Proxy are built and merged**, in `services/geocoding/`, and both
 briefs had to be rewritten before they could be. They rested on two premises
