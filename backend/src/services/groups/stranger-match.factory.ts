@@ -1,6 +1,11 @@
 import { HttpError } from '../../utils/http-error.js';
 import { RideGroupFactory } from './ride-group.factory.js';
-import type { MemberSpec, RideGroupHeader } from './ride-group.types.js';
+import type {
+  CreatedRideGroup,
+  MemberSpec,
+  RideGroupHeader,
+} from './ride-group.types.js';
+import { StrangerMatchProduct, type RideGroupProduct } from './ride-group.product.js';
 
 export interface StrangerMatchInput extends RideGroupHeader {
   riderAId: string;
@@ -60,5 +65,9 @@ export class StrangerMatchFactory extends RideGroupFactory<StrangerMatchInput> {
       respondedAt: 'now',
       dropoffLocationId: input.dropoffs[userId] ?? null,
     }));
+  }
+
+  protected wrapProduct(created: CreatedRideGroup): RideGroupProduct {
+    return new StrangerMatchProduct(created);
   }
 }

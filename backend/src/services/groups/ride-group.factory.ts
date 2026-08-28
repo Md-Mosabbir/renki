@@ -7,6 +7,7 @@ import type {
   MemberSpec,
   RideGroupHeader,
 } from './ride-group.types.js';
+import type { RideGroupProduct } from './ride-group.product.js';
 
 /**
  * ABSTRACT CREATOR.
@@ -67,6 +68,25 @@ export abstract class RideGroupFactory<TInput extends RideGroupHeader> {
    * constraint-violation string after it.
    */
   protected abstract assertOriginAllowed(input: TInput): void;
+
+  /**
+   * The slide's `createProduct()` — abstract, one implementation per
+   * concrete creator, returning THIS kind's own Product wrapper. Added
+   * alongside `create()` rather than replacing it: `create()` is the tested
+   * path every real caller uses; this exists so the class hierarchy has a
+   * genuine polymorphic method to point at, without touching either.
+   */
+  protected abstract wrapProduct(created: CreatedRideGroup): RideGroupProduct;
+
+  /**
+   * The slide's `someOperation()` — calls `create()` (this file's real
+   * template method), then hands the result to whichever concrete
+   * `wrapProduct()` the runtime type resolves to.
+   */
+  async createProduct(client: PoolClient, input: TInput): Promise<RideGroupProduct> {
+    const created = await this.create(client, input);
+    return this.wrapProduct(created);
+  }
 }
 
 /* ------------------------------------------------------------------ *

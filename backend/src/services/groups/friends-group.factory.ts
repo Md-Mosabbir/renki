@@ -1,5 +1,7 @@
 import { RideGroupFactory } from './ride-group.factory.js';
 import type { MemberSpec, RideGroupHeader } from './ride-group.types.js';
+import type { CreatedRideGroup } from './ride-group.types.js';
+import { FriendsGroupProduct, type RideGroupProduct } from './ride-group.product.js';
 
 /**
  * CONCRETE PRODUCT input — everything FriendsGroupFactory needs.
@@ -86,5 +88,9 @@ export class FriendsGroupFactory extends RideGroupFactory<FriendsGroupInput> {
         dropoffLocationId: input.dropoffs?.[id] ?? null,
       })),
     ];
+  }
+
+  protected wrapProduct(created: CreatedRideGroup): RideGroupProduct {
+    return new FriendsGroupProduct(created);
   }
 }

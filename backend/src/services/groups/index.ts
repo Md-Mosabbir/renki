@@ -8,3 +8,5 @@ export { FriendsGroupFactory } from './friends-group.factory.js';
 export type { FriendsGroupInput } from './friends-group.factory.js';
 export { StrangerMatchFactory } from './stranger-match.factory.js';
 export type { StrangerMatchInput } from './stranger-match.factory.js';
+export type { RideGroupProduct } from './ride-group.product.js';
+export { FriendsGroupProduct, StrangerMatchProduct } from './ride-group.product.js';
